@@ -494,6 +494,7 @@ function updateSheetSub() {
   const day = state.editingDay;
   if (!day) return;
 
+  const hasOverride = day.isRest === 0 || day.isRest === 1;
   let type;
   let holidayName = null;
 
@@ -502,13 +503,13 @@ function updateSheetSub() {
   } else if (state.editingRest === 0) {
     type = 'work';
   } else {
-    type = day.type;
-    holidayName = day.holidayName;
+    type = day.baseType ?? day.type;
+    holidayName = hasOverride ? null : (day.baseHolidayName ?? day.holidayName);
   }
 
-  const resetting = state.editingRest === null && day.isRest !== null;
-  const baseLabel = holidayName || (type === 'rest' ? '休息日' : '工作日');
-  const label = resetting ? `按设置 · ${baseLabel}` : baseLabel;
+  const resetting = state.editingRest === null && hasOverride;
+  const typeLabel = type === 'rest' ? '休息日' : '工作日';
+  const label = resetting ? `按设置 · ${typeLabel}` : (holidayName || typeLabel);
   const overtimeStart = state.data?.settings?.overtimeStart;
   const rule = type === 'rest'
     ? '全天算加班'

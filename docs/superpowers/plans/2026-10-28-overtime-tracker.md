@@ -677,7 +677,7 @@ git commit -m "feat: add password auth with sessions and rate limiting"
     "period": { "start": "2026-09-26", "end": "2026-10-25", "totalMinutes": 0 },
     "days": [
       { "date": "2026-10-01", "inAt": null, "outAt": null, "outNextDay": 0, "isRest": null,
-        "type": "rest", "holidayName": "国庆节", "overtimeMinutes": 0, "incomplete": false }
+        "type": "rest", "holidayName": "国庆节", "baseType": "rest", "baseHolidayName": "国庆节", "overtimeMinutes": 0, "incomplete": false }
     ]
   }
 }

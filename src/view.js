@@ -100,6 +100,15 @@ function makeDayResolver({ settings, lookup }) {
       workdays: settings.workdays,
     });
 
+    const { type: baseType, holidayName: baseHolidayName } = resolveDayType({
+      date,
+      isRestOverride: null,
+      autoHoliday: settings.autoHoliday,
+      holidayIsWorkday,
+      holidayName: holiday,
+      workdays: settings.workdays,
+    });
+
     return {
       date,
       inAt,
@@ -108,6 +117,8 @@ function makeDayResolver({ settings, lookup }) {
       isRest,
       type,
       holidayName,
+      baseType,
+      baseHolidayName,
       overtimeMinutes: overtimeMinutes({
         inAt,
         outAt,

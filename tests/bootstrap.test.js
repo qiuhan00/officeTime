@@ -100,6 +100,8 @@ test('结构完整、today 为空、可上班不可下班', async (t) => {
       'isRest',
       'type',
       'holidayName',
+      'baseType',
+      'baseHolidayName',
       'overtimeMinutes',
       'incomplete',
     ]);
@@ -113,6 +115,8 @@ test('结构完整、today 为空、可上班不可下班', async (t) => {
     isRest: null,
     type: 'work',
     holidayName: null,
+    baseType: 'work',
+    baseHolidayName: null,
     overtimeMinutes: 0,
     incomplete: false,
   });
@@ -198,6 +202,8 @@ test('日历每天都有，节假日带名称且类型为 rest', async (t) => {
   const nationalDay = body.view.days.find((d) => d.date === '2026-10-01');
   assert.equal(nationalDay.type, 'rest');
   assert.equal(nationalDay.holidayName, '国庆节');
+  assert.equal(nationalDay.baseType, 'rest');
+  assert.equal(nationalDay.baseHolidayName, '国庆节');
 
   // 未覆盖的日期回落到工作日设置（2026-10-02 周五）
   const uncovered = body.view.days.find((d) => d.date === '2026-10-02');
@@ -214,6 +220,8 @@ test('日历每天都有，节假日带名称且类型为 rest', async (t) => {
   const overriddenDay = overridden.body.view.days.find((d) => d.date === '2026-10-01');
   assert.equal(overriddenDay.type, 'work');
   assert.equal(overriddenDay.holidayName, null);
+  assert.equal(overriddenDay.baseType, 'rest');
+  assert.equal(overriddenDay.baseHolidayName, '国庆节');
 });
 
 test('设置修改后立即重算', async (t) => {

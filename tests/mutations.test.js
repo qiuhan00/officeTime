@@ -64,6 +64,8 @@ test('上班打卡写入服务器时间', async (t) => {
     isRest: null,
     type: 'work',
     holidayName: null,
+    baseType: 'work',
+    baseHolidayName: null,
     overtimeMinutes: 0,
     incomplete: true,
   });
@@ -202,6 +204,8 @@ test('补录：只填上班允许，且不计合计', async (t) => {
     isRest: null,
     type: 'work',
     holidayName: null,
+    baseType: 'work',
+    baseHolidayName: null,
     overtimeMinutes: 0,
     incomplete: true,
   });
