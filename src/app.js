@@ -17,6 +17,7 @@ import {
   deleteSession,
   deleteExpiredSessions,
 } from './db.js';
+import { buildBootstrap, parseMonthParam, validateSettingsPatch } from './view.js';
 
 export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () => new Date() }) {
   const app = express();
@@ -97,6 +98,33 @@ export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () =
     db.prepare('DELETE FROM sessions').run();
     startSession(res);
     res.json({ ok: true });
+  });
+
+  app.get('/api/bootstrap', requireAuth(db), (req, res) => {
+    let month;
+    try {
+      month = parseMonthParam(req.query.month);
+    } catch {
+      return res.status(400).json({ error: 'invalid_month' });
+    }
+    res.json(buildBootstrap({ db, now: now(), month }));
+  });
+
+  app.put('/api/settings', requireAuth(db), (req, res) => {
+    let month;
+    try {
+      month = parseMonthParam(req.query.month);
+    } catch {
+      return res.status(400).json({ error: 'invalid_month' });
+    }
+
+    const patch = validateSettingsPatch(req.body);
+    if (!patch) {
+      return res.status(400).json({ error: 'invalid_settings' });
+    }
+
+    updateSettings(db, patch);
+    res.json(buildBootstrap({ db, now: now(), month }));
   });
 
   app.use('/api', (req, res) => {
