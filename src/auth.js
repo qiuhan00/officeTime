@@ -31,7 +31,7 @@ export function verifyPassword(pw, stored) {
   return crypto.timingSafeEqual(actual, expected);
 }
 
-export function createRateLimiter({ limit = 5, windowMs = 60_000 } = {}) {
+export function createRateLimiter({ limit = 5, windowMs = 60_000, now = () => Date.now() } = {}) {
   const entries = new Map();
 
   function entryFor(key, at) {
@@ -44,7 +44,7 @@ export function createRateLimiter({ limit = 5, windowMs = 60_000 } = {}) {
 
   return {
     check(key) {
-      const entry = entryFor(key, Date.now());
+      const entry = entryFor(key, now());
       if (entry.count >= limit) return false;
       entry.count += 1;
       return true;
@@ -89,14 +89,14 @@ export function sessionExpiry(now) {
   return new Date(now.getTime() + SESSION_TTL_MS).toISOString();
 }
 
-export function requireAuth(db) {
+export function requireAuth(db, now = () => new Date()) {
   return (req, res, next) => {
     const token = parseCookies(req.headers.cookie).sid;
     if (!token) return res.status(401).json({ error: 'unauthorized' });
     const session = getSession(db, token);
     if (!session) return res.status(401).json({ error: 'unauthorized' });
     const expiresAt = Date.parse(session.expiresAt);
-    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+    if (!Number.isFinite(expiresAt) || expiresAt <= now().getTime()) {
       deleteSession(db, token);
       return res.status(401).json({ error: 'unauthorized' });
     }

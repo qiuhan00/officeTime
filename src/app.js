@@ -32,7 +32,10 @@ export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () =
   }
   deleteExpiredSessions(db, now().toISOString());
 
-  const loginLimiter = createRateLimiter({ limit: 5, windowMs: 60_000 });
+  const nowMs = () => now().getTime();
+  const loginLimiter = createRateLimiter({ limit: 5, windowMs: 60_000, now: nowMs });
+  const globalLoginLimiter = createRateLimiter({ limit: 20, windowMs: 60_000, now: nowMs });
+  const GLOBAL_LOGIN_KEY = '__global__';
 
   function startSession(res) {
     const token = newSessionToken();
@@ -57,7 +60,9 @@ export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () =
     }
 
     const ip = req.ip || 'unknown';
-    if (!loginLimiter.check(ip)) {
+    const withinIpLimit = loginLimiter.check(ip);
+    const withinGlobalLimit = globalLoginLimiter.check(GLOBAL_LOGIN_KEY);
+    if (!withinIpLimit || !withinGlobalLimit) {
       return res.status(429).json({ error: 'too_many_attempts' });
     }
 
@@ -66,6 +71,7 @@ export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () =
     }
 
     loginLimiter.reset(ip);
+    globalLoginLimiter.reset(GLOBAL_LOGIN_KEY);
     startSession(res);
     res.json({ ok: true });
   });
@@ -77,11 +83,11 @@ export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () =
     res.json({ ok: true });
   });
 
-  app.get('/api/session', requireAuth(db), (req, res) => {
+  app.get('/api/session', requireAuth(db, now), (req, res) => {
     res.json({ ok: true });
   });
 
-  app.post('/api/password', requireAuth(db), (req, res) => {
+  app.post('/api/password', requireAuth(db, now), (req, res) => {
     const { oldPassword, newPassword } = req.body ?? {};
 
     if (typeof newPassword !== 'string' || newPassword.length < 8) {
@@ -103,7 +109,7 @@ export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () =
     res.json({ ok: true });
   });
 
-  app.get('/api/bootstrap', requireAuth(db), (req, res) => {
+  app.get('/api/bootstrap', requireAuth(db, now), (req, res) => {
     let month;
     try {
       month = parseMonthParam(req.query.month);
@@ -113,7 +119,7 @@ export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () =
     res.json(buildBootstrap({ db, now: now(), month }));
   });
 
-  app.put('/api/settings', requireAuth(db), (req, res) => {
+  app.put('/api/settings', requireAuth(db, now), (req, res) => {
     let month;
     try {
       month = parseMonthParam(req.query.month);
@@ -130,7 +136,7 @@ export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () =
     res.json(buildBootstrap({ db, now: now(), month }));
   });
 
-  app.post('/api/punch', requireAuth(db), (req, res) => {
+  app.post('/api/punch', requireAuth(db, now), (req, res) => {
     const result = punch({ db, now: now(), type: req.body?.type });
     if (result.status === 200) {
       return res.json(result.bootstrap);
@@ -138,7 +144,7 @@ export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () =
     return res.status(result.status).json({ error: result.error });
   });
 
-  app.put('/api/days/:date', requireAuth(db), (req, res) => {
+  app.put('/api/days/:date', requireAuth(db, now), (req, res) => {
     const result = saveDay({ db, now: now(), date: req.params.date, body: req.body });
     if (result.status === 200) {
       return res.json(result.bootstrap);
@@ -146,7 +152,7 @@ export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () =
     return res.status(result.status).json({ error: result.error });
   });
 
-  app.delete('/api/days/:date', requireAuth(db), (req, res) => {
+  app.delete('/api/days/:date', requireAuth(db, now), (req, res) => {
     const result = removeDay({ db, now: now(), date: req.params.date });
     if (result.status === 200) {
       return res.json(result.bootstrap);
@@ -154,11 +160,11 @@ export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () =
     return res.status(result.status).json({ error: result.error });
   });
 
-  app.post('/api/holidays/refresh', requireAuth(db), async (req, res) => {
+  app.post('/api/holidays/refresh', requireAuth(db, now), async (req, res) => {
     try {
       const meta = await refreshHoliday({ db, fetchImpl, url: config?.holidayUrl });
       const current = getSettings(db);
-      res.json({ holiday: { ...meta, auto: current.autoHoliday } });
+      res.json({ holiday: { ...meta, bundled: false, auto: current.autoHoliday } });
     } catch (error) {
       console.error(`holiday refresh failed: ${error.message}`);
       res.status(502).json({ error: 'refresh_failed' });
