@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import express from 'express';
 import {
   hashPassword,
@@ -167,6 +168,11 @@ export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () =
   app.use('/api', (req, res) => {
     res.status(404).json({ error: 'Not found' });
   });
+
+  app.get('/', (req, res) => {
+    res.sendFile('index.html', { root: resolve('public') });
+  });
+  app.use(express.static(resolve('public'), { index: 'index.html' }));
 
   return app;
 }

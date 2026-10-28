@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#2f45d0" />
+    <title>加班记录</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+      <section id="login-view" class="login-view">
+        <h1 class="login-title">加班记录</h1>
+        <p class="login-hint">请输入密码登录</p>
+        <form id="login-form" class="login-form">
+          <label class="field-label" for="login-password">密码</label>
+          <input
+            id="login-password"
+            class="text-input"
+            type="password"
+            name="password"
+            autocomplete="current-password"
+            required
+          />
+          <p id="login-error" class="login-error" role="alert"></p>
+          <button class="primary-btn" type="submit">登录</button>
+        </form>
+      </section>
+
+      <main id="main-view" class="main-view" hidden>
+        <section class="stat-card">
+          <div class="stat-head">
+            <span id="period-range" class="period-range"></span>
+            <button id="settings-btn" class="icon-btn" type="button" aria-label="设置" title="设置">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+                <path
+                  fill="currentColor"
+                  d="M12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2Zm9 4.72v-2.24l-2.4-.8a7.2 7.2 0 0 0-.72-1.74l1.14-2.26-1.58-1.58-2.26 1.14a7.2 7.2 0 0 0-1.74-.72L12.64 2.5h-2.24L9.6 4.9c-.62.16-1.2.4-1.74.72L5.6 4.48 4.02 6.06l1.14 2.26c-.32.54-.56 1.12-.72 1.74l-2.4.8v2.24l2.4.8c.16.62.4 1.2.72 1.74l-1.14 2.26 1.58 1.58 2.26-1.14c.54.32 1.12.56 1.74.72l.8 2.4h2.24l.8-2.4c.62-.16 1.2-.4 1.74-.72l2.26 1.14 1.58-1.58-1.14-2.26c.32-.54.56-1.12.72-1.74l2.4-.8Z"
+                />
+              </svg>
+            </button>
+          </div>
+          <div id="period-total" class="stat-total"></div>
+          <div id="today-ot" class="stat-today"></div>
+        </section>
+
+        <section class="punch-row">
+          <button id="btn-in" class="punch-btn" type="button">上班</button>
+          <button id="btn-out" class="punch-btn" type="button">下班</button>
+        </section>
+
+        <section class="calendar">
+          <div class="cal-head">
+            <button id="cal-prev" class="cal-nav" type="button" aria-label="上个月">‹</button>
+            <span id="cal-title" class="cal-title"></span>
+            <button id="cal-next" class="cal-nav" type="button" aria-label="下个月">›</button>
+          </div>
+          <div id="cal-grid" class="cal-grid" role="grid"></div>
+        </section>
+      </main>
+    </div>
+    <script src="/app.js" defer></script>
+  </body>
+</html>

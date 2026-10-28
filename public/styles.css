@@ -1,0 +1,388 @@
+:root {
+  --primary: #2f45d0;
+  --primary-dark: #2639b0;
+  --ot-bg: #e9ecff;
+  --rest-text: #b3b8c2;
+  --text: #1d2233;
+  --muted: #7b8195;
+  --line: #e8eaf1;
+  --page: #f4f5f9;
+  --card: #ffffff;
+  --danger: #d64545;
+  --success: #1f9d61;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--page);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.4;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.app {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 20px 16px calc(24px + env(safe-area-inset-bottom));
+  background: var(--page);
+}
+
+/* Toast */
+
+.toast {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  z-index: 20;
+  max-width: min(440px, calc(100vw - 32px));
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(29, 34, 51, 0.92);
+  color: #fff;
+  font-size: 14px;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -12px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.toast.success {
+  background: var(--success);
+}
+
+.toast.error {
+  background: var(--danger);
+}
+
+/* Login */
+
+.login-view {
+  padding: 18vh 4px 0;
+}
+
+.login-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+
+.login-hint {
+  margin: 8px 0 28px;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.login-form {
+  padding: 22px 18px;
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow: 0 8px 30px rgba(29, 34, 51, 0.08);
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.text-input {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfbfe;
+  color: var(--text);
+  font-size: 16px;
+  outline: none;
+}
+
+.text-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(47, 69, 208, 0.14);
+}
+
+.login-error {
+  min-height: 20px;
+  margin: 10px 0 0;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.primary-btn {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 13px 16px;
+  border-radius: 10px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  transition: background 0.15s ease;
+}
+
+.primary-btn:hover {
+  background: var(--primary-dark);
+}
+
+.primary-btn:active {
+  transform: translateY(1px);
+}
+
+/* Stat card */
+
+.main-view {
+  display: block;
+}
+
+.stat-card {
+  padding: 18px 18px 16px;
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow: 0 8px 30px rgba(29, 34, 51, 0.07);
+}
+
+.stat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.period-range {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  margin: -4px -6px -4px 0;
+  border-radius: 50%;
+  color: var(--muted);
+}
+
+.icon-btn:hover {
+  background: #f0f2fa;
+  color: var(--primary);
+}
+
+.stat-total {
+  margin-top: 10px;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.stat-today {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: right;
+}
+
+/* Punch buttons */
+
+.punch-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.punch-btn {
+  padding: 18px 10px;
+  border-radius: 14px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 600;
+  text-align: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.punch-btn:hover:not(:disabled) {
+  background: var(--primary-dark);
+}
+
+.punch-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.punch-btn:disabled {
+  background: #eceef5;
+  color: #9298aa;
+  cursor: default;
+}
+
+.punch-btn.is-delayed {
+  background: #4557d8;
+}
+
+/* Calendar */
+
+.calendar {
+  margin-top: 16px;
+  padding: 14px 12px 16px;
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow: 0 8px 30px rgba(29, 34, 51, 0.07);
+}
+
+.cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.cal-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.cal-nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--primary);
+  font-size: 24px;
+  line-height: 1;
+}
+
+.cal-nav:hover {
+  background: #f0f2fa;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.cal-weekday {
+  padding: 6px 0;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.cal-blank {
+  min-height: 48px;
+}
+
+.cal-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 48px;
+  padding: 4px 2px;
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.1;
+}
+
+.cal-cell:not(:disabled):hover {
+  background: #f3f4fb;
+}
+
+.cal-cell.dim {
+  color: #c8ccd6;
+}
+
+.cal-cell.rest {
+  color: var(--rest-text);
+}
+
+.cal-cell.has-ot {
+  background: var(--ot-bg);
+}
+
+.cal-cell.today {
+  box-shadow: inset 0 0 0 2px var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.cal-day {
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-ot {
+  color: var(--primary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-cell.dim .cal-ot {
+  color: #b9c0f2;
+}
+
+.cal-dot {
+  width: 5px;
+  height: 5px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+@media (max-width: 360px) {
+  .app {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .cal-cell {
+    min-height: 44px;
+    font-size: 13px;
+  }
+}
