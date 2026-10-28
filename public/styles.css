@@ -391,11 +391,18 @@ button {
   z-index: 41;
   width: 100%;
   max-width: 480px;
+  max-height: 85vh;
+  overflow-y: auto;
   padding: 8px 18px calc(20px + env(safe-area-inset-bottom));
   border-radius: 20px 20px 0 0;
   background: var(--card);
   box-shadow: 0 -12px 40px rgba(29, 34, 51, 0.18);
   transform: translateX(-50%);
+}
+
+.day-sheet:focus,
+.settings-panel:focus {
+  outline: none;
 }
 
 .sheet-grabber {
@@ -537,8 +544,14 @@ button {
   text-align: center;
 }
 
-.danger-btn:hover {
+.danger-btn:hover:not(:disabled) {
   background: #fadada;
+}
+
+.danger-btn:disabled {
+  background: #f2f3f7;
+  color: var(--muted);
+  cursor: default;
 }
 
 .sheet-hint {

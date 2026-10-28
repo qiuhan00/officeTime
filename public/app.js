@@ -14,7 +14,7 @@ const ERROR_MESSAGES = {
   next_day_conflict: '有未完成的打卡记录，请先补录下班',
   invalid_type: '无效的打卡操作',
   bad_request: '请求有误，请刷新后重试',
-  invalid_date: '日期无效，不能修改未来日期',
+  invalid_date: '日期格式无效',
   invalid_time: '时间格式无效',
   future_time: '不能填晚于现在的时间',
   invalid_rest: '休息日设置无效',
@@ -29,11 +29,30 @@ const ERROR_MESSAGES = {
 
 const WEEKDAY_LABELS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ');
+
+const HOLIDAY_DATE_FORMATTER = new Intl.DateTimeFormat('zh-CN', {
+  timeZone: 'Asia/Shanghai',
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+});
+
 const TOAST_MS = 3000;
 
 let toastTimer = null;
+let activeDialog = null;
+let dialogReturnFocus = null;
 
 const els = {
+  app: document.querySelector('.app'),
   toast: document.getElementById('toast'),
   loginView: document.getElementById('login-view'),
   loginForm: document.getElementById('login-form'),
@@ -120,10 +139,22 @@ function weekdayLabel(date) {
   return WEEKDAY_LABELS[weekdayMon(date) - 1];
 }
 
-function isoDate(value) {
-  if (value === null || value === undefined) return '';
-  const text = String(value);
-  return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : text;
+function formatChineseDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value ?? ''));
+  if (!match) return '';
+  return `${Number(match[1])}年${Number(match[2])}月${Number(match[3])}日`;
+}
+
+function formatChineseTimestamp(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const parts = {};
+  for (const part of HOLIDAY_DATE_FORMATTER.formatToParts(date)) {
+    if (part.type !== 'literal') parts[part.type] = part.value;
+  }
+  return `${parts.year}年${Number(parts.month)}月${Number(parts.day)}日`;
 }
 
 function errorMessage(error, fallback = '操作失败，请稍后重试') {
@@ -144,15 +175,93 @@ function showToast(message, kind = '') {
 }
 
 function showLogin() {
+  els.mainView.hidden = true;
   closeDaySheet();
   closeSettings();
-  els.mainView.hidden = true;
   els.loginView.hidden = false;
 }
 
 function showMain() {
   els.loginView.hidden = true;
   els.mainView.hidden = false;
+}
+
+function setBackgroundInert(inert) {
+  if (!els.app) return;
+  els.app.inert = inert;
+  if (inert) {
+    els.app.setAttribute('aria-hidden', 'true');
+  } else {
+    els.app.removeAttribute('aria-hidden');
+  }
+}
+
+function focusableIn(container) {
+  return Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR)).filter(
+    (element) => !element.disabled && element.getClientRects().length > 0,
+  );
+}
+
+function activateDialog(dialog, opener = document.activeElement) {
+  if (activeDialog === dialog) return;
+  activeDialog = dialog;
+  dialogReturnFocus = opener && opener !== document.body ? opener : null;
+  setBackgroundInert(true);
+  dialog.focus();
+}
+
+function deactivateDialog(dialog) {
+  if (activeDialog !== dialog) return;
+  activeDialog = null;
+  setBackgroundInert(false);
+
+  const target = dialogReturnFocus;
+  dialogReturnFocus = null;
+  if (target && target.isConnected && target.offsetParent !== null) {
+    target.focus();
+  }
+}
+
+function closeActiveDialog() {
+  if (activeDialog === els.daySheet) closeDaySheet();
+  else if (activeDialog === els.settingsPanel) closeSettings();
+}
+
+function onDocumentKeydown(event) {
+  if (!activeDialog) return;
+
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeActiveDialog();
+    return;
+  }
+
+  if (event.key !== 'Tab') return;
+
+  const focusables = focusableIn(activeDialog);
+  if (focusables.length === 0) {
+    event.preventDefault();
+    activeDialog.focus();
+    return;
+  }
+
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const current = document.activeElement;
+
+  if (current === activeDialog || !activeDialog.contains(current)) {
+    event.preventDefault();
+    (event.shiftKey ? last : first).focus();
+    return;
+  }
+
+  if (event.shiftKey && current === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && current === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 async function api(path, options = {}) {
@@ -307,13 +416,17 @@ async function adoptBootstrap(data, viewMonth) {
 
 function renderHolidayMeta() {
   const holiday = state.data?.holiday;
-  if (!holiday || !holiday.coverageMin || !holiday.coverageMax) {
+  const coverageMin = formatChineseDate(holiday?.coverageMin);
+  const coverageMax = formatChineseDate(holiday?.coverageMax);
+
+  if (!coverageMin || !coverageMax) {
     els.holidayMeta.textContent = '暂无数据';
     return;
   }
-  const updated = isoDate(holiday.updatedAt);
+
+  const updated = formatChineseTimestamp(holiday.updatedAt);
   const suffix = updated ? ` · 最后更新 ${updated}` : ' · 最后更新 暂无数据';
-  els.holidayMeta.textContent = `数据覆盖 ${holiday.coverageMin} – ${holiday.coverageMax}${suffix}`;
+  els.holidayMeta.textContent = `数据覆盖 ${coverageMin} – ${coverageMax}${suffix}`;
 }
 
 function buildWeekdays() {
@@ -359,10 +472,12 @@ function openSettings() {
   els.setPasswordOld.value = '';
   els.setPasswordNew.value = '';
   els.settingsPanel.hidden = false;
+  activateDialog(els.settingsPanel);
 }
 
 function closeSettings() {
   els.settingsPanel.hidden = true;
+  deactivateDialog(els.settingsPanel);
 }
 
 function findDay(date) {
@@ -386,17 +501,20 @@ function updateSheetSub() {
     type = 'rest';
   } else if (state.editingRest === 0) {
     type = 'work';
-  } else if (day.isRest === null || day.isRest === undefined) {
+  } else {
     type = day.type;
     holidayName = day.holidayName;
-  } else {
-    const workdays = state.data?.settings?.workdays ?? [];
-    type = workdays.includes(weekdayMon(day.date)) ? 'work' : 'rest';
   }
 
-  const label = holidayName || (type === 'rest' ? '休息日' : '工作日');
-  const overtimeStart = state.data?.settings?.overtimeStart ?? '19:00';
-  const rule = type === 'rest' ? '全天算加班' : `${overtimeStart} 后算加班`;
+  const resetting = state.editingRest === null && day.isRest !== null;
+  const baseLabel = holidayName || (type === 'rest' ? '休息日' : '工作日');
+  const label = resetting ? `按设置 · ${baseLabel}` : baseLabel;
+  const overtimeStart = state.data?.settings?.overtimeStart;
+  const rule = type === 'rest'
+    ? '全天算加班'
+    : overtimeStart
+      ? `${overtimeStart} 后算加班`
+      : '按设置算加班';
   els.sheetSub.textContent = `${label} · ${rule}`;
 }
 
@@ -432,16 +550,19 @@ function openDaySheet(date) {
   els.sheetTitle.textContent = `${formatMonthDay(date)} ${weekdayLabel(date)}`;
   els.sheetIn.value = day.inAt ?? '';
   els.sheetOut.value = day.outAt ?? '';
+  els.sheetDelete.disabled = !(day.inAt || day.outAt || day.isRest !== null);
   updateRestUi();
   updateEmptyHints();
 
   els.sheetBackdrop.hidden = false;
   els.daySheet.hidden = false;
+  activateDialog(els.daySheet);
 }
 
 function closeDaySheet() {
   els.daySheet.hidden = true;
   els.sheetBackdrop.hidden = true;
+  deactivateDialog(els.daySheet);
   state.editingDate = null;
   state.editingDay = null;
   state.editingRest = null;
@@ -487,7 +608,7 @@ async function saveDay() {
 }
 
 async function deleteDay() {
-  if (!state.editingDate) return;
+  if (!state.editingDate || els.sheetDelete.disabled) return;
   if (!window.confirm('确定删除这一天的记录吗？')) return;
 
   const date = state.editingDate;
@@ -594,8 +715,6 @@ async function logout() {
 
   state.data = null;
   state.month = null;
-  closeDaySheet();
-  closeSettings();
   els.loginPassword.value = '';
   els.loginError.textContent = '';
   showLogin();
@@ -683,6 +802,7 @@ function bindEvents() {
   els.holidayRefresh.addEventListener('click', refreshHolidays);
   els.setPasswordSave.addEventListener('click', savePassword);
   els.logout.addEventListener('click', logout);
+  document.addEventListener('keydown', onDocumentKeydown);
 }
 
 bindEvents();
