@@ -31,6 +31,10 @@ function assertEntries(source, label) {
     if (!isRealDate(date)) {
       throw invalid(`${label} contains invalid date: ${date}`);
     }
+    const year = Number(date.slice(0, 4));
+    if (year < 2004 || year > 2100) {
+      throw invalid(`${label} contains out-of-range year: ${date}`);
+    }
     if (typeof value !== 'string') {
       throw invalid(`${label} value for ${date} must be a string`);
     }
@@ -73,8 +77,11 @@ export function parseHolidayData(rawText, { maxBytes = DEFAULT_MAX_BYTES } = {})
   const holidays = new Map(
     holidayKeys.map((date) => [date, chineseName(data.holidays[date])]),
   );
-  const workdays = new Set(Object.keys(data.workdays));
-  const allKeys = [...holidayKeys, ...workdays];
+  const workdayKeys = Object.keys(data.workdays);
+  const workdays = new Map(
+    workdayKeys.map((date) => [date, chineseName(data.workdays[date])]),
+  );
+  const allKeys = [...holidayKeys, ...workdayKeys];
   const coverageMin = allKeys.reduce((min, date) => (date < min ? date : min));
   const coverageMax = allKeys.reduce((max, date) => (date > max ? date : max));
 
@@ -90,7 +97,7 @@ export async function fetchHolidayData(
     throw new Error(`holiday fetch failed with status ${response.status}`);
   }
   const rawText = await response.text();
-  return parseHolidayData(rawText, { maxBytes });
+  return { ...parseHolidayData(rawText, { maxBytes }), rawText };
 }
 
 export function holidayLookup(parsed) {
@@ -101,7 +108,7 @@ export function holidayLookup(parsed) {
       return null;
     },
     nameOf(date) {
-      return parsed.holidays.get(date) ?? null;
+      return parsed.holidays.get(date) ?? parsed.workdays.get(date) ?? null;
     },
   };
 }

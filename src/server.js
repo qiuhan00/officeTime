@@ -21,5 +21,5 @@ startHolidayScheduler({ db, fetchImpl: globalThis.fetch, url: config.holidayUrl 
 const app = createApp({ db, config });
 
 const server = app.listen(config.port, () => {
-  console.log(`Listening on http://127.0.0.1:${server.address().port}`);
+  console.log(`Listening on port ${server.address().port}`);
 });

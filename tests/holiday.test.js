@@ -22,7 +22,27 @@ test('查询：调休工作日 true、节假日 false、未知 null', () => {
   assert.equal(l.isWorkday('2026-10-01'), false);
   assert.equal(l.isWorkday('2026-10-12'), null);
   assert.equal(l.nameOf('2026-10-01'), '国庆节');
+  assert.equal(l.nameOf('2026-10-10'), '国庆节');
   assert.equal(l.nameOf('2026-10-12'), null);
+});
+
+test('覆盖年份需在 2004–2100 之间', () => {
+  const valid = JSON.stringify({
+    holidays: { '2004-01-01': 'x,元旦' },
+    workdays: { '2100-12-31': 'x,调休' },
+  });
+  assert.doesNotThrow(() => parseHolidayData(valid));
+
+  for (const date of ['2003-12-31', '2101-01-01']) {
+    const raw = JSON.stringify({ holidays: { [date]: 'x,元旦' }, workdays: {} });
+    assert.throws(() => parseHolidayData(raw), (error) => error.code === 'INVALID_HOLIDAY_DATA');
+  }
+
+  const workdayRaw = JSON.stringify({
+    holidays: { '2026-10-01': 'x,国庆节' },
+    workdays: { '2003-12-31': 'x,调休' },
+  });
+  assert.throws(() => parseHolidayData(workdayRaw), (error) => error.code === 'INVALID_HOLIDAY_DATA');
 });
 
 test('非法数据被拒绝', () => {

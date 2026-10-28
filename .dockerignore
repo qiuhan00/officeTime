@@ -4,3 +4,5 @@ data
 .superpowers
 .playwright-mcp
 docs
+.env
+*.log

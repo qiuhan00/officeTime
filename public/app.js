@@ -11,7 +11,7 @@ const state = {
 const ERROR_MESSAGES = {
   already_in: '今天已经打过上班卡了',
   not_clocked_in: '还没有上班打卡',
-  next_day_conflict: '有未完成的打卡记录，请先补录下班',
+  next_day_conflict: '次日已有记录，请先处理次日记录',
   invalid_type: '无效的打卡操作',
   bad_request: '请求有误，请刷新后重试',
   invalid_date: '日期格式无效',
@@ -62,8 +62,10 @@ const els = {
   periodRange: document.getElementById('period-range'),
   periodTotal: document.getElementById('period-total'),
   todayOt: document.getElementById('today-ot'),
+  punchRow: document.querySelector('.punch-row'),
   btnIn: document.getElementById('btn-in'),
   btnOut: document.getElementById('btn-out'),
+  punchDone: document.getElementById('punch-done'),
   settingsBtn: document.getElementById('settings-btn'),
   calTitle: document.getElementById('cal-title'),
   calPrev: document.getElementById('cal-prev'),
@@ -127,6 +129,12 @@ function weekdayMon(date) {
   const [year, month, day] = date.split('-').map(Number);
   const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
   return weekday === 0 ? 7 : weekday;
+}
+
+function shiftDate(date, delta) {
+  const [year, month, day] = date.split('-').map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day + delta));
+  return `${shifted.getUTCFullYear()}-${pad2(shifted.getUTCMonth() + 1)}-${pad2(shifted.getUTCDate())}`;
 }
 
 function shiftMonth(month, delta) {
@@ -309,17 +317,28 @@ async function load(month = state.month) {
   }
 }
 
-function renderPunch(punch, today) {
+function renderPunch(punch, today, now) {
   const inAt = today?.inAt ?? null;
   const outAt = today?.outAt ?? null;
   const delayedOut = punch.delayedOutDate;
+  const complete = Boolean(inAt && outAt && !delayedOut);
+
+  els.punchRow.classList.toggle('is-complete', complete);
+  els.btnIn.hidden = complete;
+  els.btnOut.hidden = complete;
+  if (els.punchDone) els.punchDone.hidden = !complete;
+
+  if (complete) return;
 
   els.btnIn.textContent = inAt ? `上班 ${inAt}` : '上班';
   els.btnIn.disabled = !punch.canIn;
 
   els.btnOut.classList.toggle('is-delayed', Boolean(delayedOut));
   if (delayedOut) {
-    els.btnOut.textContent = '昨天 下班';
+    const yesterday = now?.date ? shiftDate(now.date, -1) : null;
+    els.btnOut.textContent = delayedOut === yesterday
+      ? '昨天 下班'
+      : `${formatMonthDay(delayedOut)} 下班`;
   } else {
     els.btnOut.textContent = outAt ? `下班 ${outAt}` : '下班';
   }
@@ -397,9 +416,9 @@ function render() {
 
   els.periodRange.textContent = `${formatMonthDay(view.period.start)}–${formatMonthDay(view.period.end)}`;
   els.periodTotal.textContent = formatDuration(view.period.totalMinutes);
-  els.todayOt.textContent = `今天 +${formatDuration(today?.overtimeMinutes ?? 0)}`;
+  els.todayOt.textContent = `今日 +${cellDuration(today?.overtimeMinutes ?? 0)}`;
 
-  renderPunch(punch, today);
+  renderPunch(punch, today, data.now);
   renderCalendar(data);
   renderHolidayMeta();
 }
@@ -425,7 +444,11 @@ function renderHolidayMeta() {
   }
 
   const updated = formatChineseTimestamp(holiday.updatedAt);
-  const suffix = updated ? ` · 最后更新 ${updated}` : ' · 最后更新 暂无数据';
+  const suffix = holiday.bundled
+    ? ' · 内置快照'
+    : updated
+      ? ` · 最后更新 ${updated}`
+      : ' · 最后更新 暂无数据';
   els.holidayMeta.textContent = `数据覆盖 ${coverageMin} – ${coverageMax}${suffix}`;
 }
 
@@ -721,19 +744,34 @@ async function logout() {
   showLogin();
 }
 
+let punchInFlight = false;
+
 async function doPunch(type) {
+  if (punchInFlight) return;
+  punchInFlight = true;
+
+  const viewMonth = state.month;
+  els.btnIn.disabled = true;
+  els.btnOut.disabled = true;
+
   try {
     const data = await api('/api/punch', {
       method: 'POST',
       body: JSON.stringify({ type }),
     });
-    state.data = data;
-    state.month = data.view.month;
-    render();
+    await adoptBootstrap(data, viewMonth);
     showToast(type === 'in' ? '上班打卡成功' : '下班打卡成功', 'success');
   } catch (error) {
     if (error.status === 401) return;
     showToast(errorMessage(error), 'error');
+  } finally {
+    punchInFlight = false;
+    if (state.data) {
+      renderPunch(state.data.punch, state.data.today, state.data.now);
+    } else {
+      els.btnIn.disabled = false;
+      els.btnOut.disabled = false;
+    }
   }
 }
 

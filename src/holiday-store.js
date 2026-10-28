@@ -1,10 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { HOLIDAY_URL, parseHolidayData } from './holiday.js';
+import { HOLIDAY_URL, fetchHolidayData, parseHolidayData } from './holiday.js';
 import { getHolidayRow, saveHolidayRow } from './db.js';
 
 const BUNDLED_FETCHED_AT = new Date(0).toISOString();
-const FETCH_TIMEOUT_MS = 10_000;
 const DEFAULT_BUNDLED_PATH = join(import.meta.dirname, '..', 'assets', 'chinese-days.json');
 
 export function seedHolidayIfEmpty(db, { bundledPath = DEFAULT_BUNDLED_PATH } = {}) {
@@ -26,25 +25,19 @@ export function seedHolidayIfEmpty(db, { bundledPath = DEFAULT_BUNDLED_PATH } = 
 }
 
 export async function refreshHoliday({ db, fetchImpl = globalThis.fetch, url = HOLIDAY_URL } = {}) {
-  const response = await fetchImpl(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-  if (!response.ok) {
-    throw new Error(`holiday fetch failed with status ${response.status}`);
-  }
-
-  const json = await response.text();
-  const parsed = parseHolidayData(json);
+  const fetched = await fetchHolidayData(url, { fetchImpl });
   const updatedAt = new Date().toISOString();
 
   saveHolidayRow(db, {
-    json,
-    coverageMin: parsed.coverageMin,
-    coverageMax: parsed.coverageMax,
+    json: fetched.rawText,
+    coverageMin: fetched.coverageMin,
+    coverageMax: fetched.coverageMax,
     fetchedAt: updatedAt,
   });
 
   return {
-    coverageMin: parsed.coverageMin,
-    coverageMax: parsed.coverageMax,
+    coverageMin: fetched.coverageMin,
+    coverageMax: fetched.coverageMax,
     updatedAt,
   };
 }

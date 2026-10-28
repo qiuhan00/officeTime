@@ -65,6 +65,7 @@ docker run -d --name overtime-tracker \
 - 备份：先停止服务，再拷贝数据库，避免 WAL 写入过程中复制。
 
   ```bash
+  mkdir -p backups
   docker compose stop
   cp data/overtime.db backups/overtime-$(date +%F).db
   docker compose start
