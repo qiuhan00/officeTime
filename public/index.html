@@ -62,6 +62,128 @@
         </section>
       </main>
     </div>
+
+    <div id="sheet-backdrop" class="sheet-backdrop" hidden></div>
+    <section
+      id="day-sheet"
+      class="day-sheet"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="sheet-title"
+      hidden
+    >
+      <div class="sheet-grabber" aria-hidden="true"></div>
+      <header class="sheet-head">
+        <div class="sheet-heading">
+          <h2 id="sheet-title" class="sheet-title"></h2>
+          <p id="sheet-sub" class="sheet-sub"></p>
+        </div>
+        <button id="sheet-close" class="icon-btn sheet-close" type="button" aria-label="关闭">×</button>
+      </header>
+      <div class="sheet-body">
+        <label id="row-in" class="sheet-row" for="sheet-in">
+          <span class="sheet-row-label">上班</span>
+          <span class="sheet-row-control">
+            <input id="sheet-in" class="sheet-time" type="time" step="60" />
+            <span class="sheet-row-empty">未打卡</span>
+          </span>
+        </label>
+        <label id="row-out" class="sheet-row" for="sheet-out">
+          <span class="sheet-row-label">下班</span>
+          <span class="sheet-row-control">
+            <input id="sheet-out" class="sheet-time" type="time" step="60" />
+            <span class="sheet-row-empty">未打卡</span>
+          </span>
+        </label>
+        <div class="sheet-rest-row">
+          <button id="sheet-rest" class="sheet-rest" type="button">按设置（工作日/休息日）</button>
+          <button id="sheet-reset-rest" class="link-btn" type="button" hidden>恢复默认</button>
+        </div>
+      </div>
+      <div class="sheet-actions">
+        <button id="sheet-delete" class="danger-btn" type="button">删除这一天</button>
+        <button id="sheet-save" class="primary-btn sheet-save" type="button">保存</button>
+      </div>
+      <p class="sheet-hint">只填一边也可以保存，未完成当天不计入合计。</p>
+    </section>
+
+    <section
+      id="settings-panel"
+      class="settings-panel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="settings-title"
+      hidden
+    >
+      <div class="settings-inner">
+        <header class="panel-head">
+          <h2 id="settings-title" class="panel-title">设置</h2>
+          <button id="settings-close" class="icon-btn" type="button" aria-label="关闭设置">×</button>
+        </header>
+
+        <section class="settings-section">
+          <h3 class="settings-heading">周期与加班</h3>
+          <label class="settings-field" for="set-period-start">
+            <span class="settings-label">周期起始日</span>
+            <input
+              id="set-period-start"
+              class="text-input"
+              type="number"
+              min="1"
+              max="28"
+              step="1"
+              inputmode="numeric"
+            />
+          </label>
+          <p class="settings-hint">每月从这一天到次月前一天算一个周期（1–28）。</p>
+          <label class="settings-field" for="set-overtime-start">
+            <span class="settings-label">加班起算时间</span>
+            <input id="set-overtime-start" class="text-input" type="time" step="60" />
+          </label>
+          <div class="settings-field settings-field-block">
+            <span id="set-workdays-label" class="settings-label">工作日</span>
+            <div id="set-workdays" class="weekdays" role="group" aria-labelledby="set-workdays-label"></div>
+          </div>
+          <label class="settings-toggle" for="set-auto-holiday">
+            <input id="set-auto-holiday" type="checkbox" />
+            <span>自动识别中国法定节假日</span>
+          </label>
+          <div class="holiday-meta">
+            <span id="holiday-meta" class="holiday-meta-text"></span>
+            <button id="holiday-refresh" class="link-btn" type="button">立即更新</button>
+          </div>
+          <button id="settings-save" class="primary-btn" type="button">保存设置</button>
+        </section>
+
+        <section class="settings-section">
+          <h3 class="settings-heading">修改密码</h3>
+          <label class="settings-field" for="set-password-old">
+            <span class="settings-label">原密码</span>
+            <input
+              id="set-password-old"
+              class="text-input"
+              type="password"
+              autocomplete="current-password"
+            />
+          </label>
+          <label class="settings-field" for="set-password-new">
+            <span class="settings-label">新密码</span>
+            <input
+              id="set-password-new"
+              class="text-input"
+              type="password"
+              autocomplete="new-password"
+            />
+          </label>
+          <button id="set-password-save" class="primary-btn" type="button">修改密码</button>
+        </section>
+
+        <section class="settings-section">
+          <button id="logout" class="danger-btn logout-btn" type="button">退出登录</button>
+        </section>
+      </div>
+    </section>
+
     <script src="/app.js" defer></script>
   </body>
 </html>

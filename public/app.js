@@ -1,14 +1,33 @@
 'use strict';
 
-const state = { data: null, month: null, editingDate: null };
+const state = {
+  data: null,
+  month: null,
+  editingDate: null,
+  editingDay: null,
+  editingRest: null,
+};
 
-const PUNCH_ERRORS = {
+const ERROR_MESSAGES = {
   already_in: '今天已经打过上班卡了',
   not_clocked_in: '还没有上班打卡',
   next_day_conflict: '有未完成的打卡记录，请先补录下班',
   invalid_type: '无效的打卡操作',
   bad_request: '请求有误，请刷新后重试',
+  invalid_date: '日期无效，不能修改未来日期',
+  invalid_time: '时间格式无效',
+  future_time: '不能填晚于现在的时间',
+  invalid_rest: '休息日设置无效',
+  invalid_month: '月份无效',
+  invalid_settings: '设置无效，请检查输入',
+  weak_password: '新密码至少 8 位',
+  bad_password: '原密码错误',
+  not_configured: '尚未配置密码，请联系管理员',
+  refresh_failed: '更新失败，继续使用现有数据',
+  unauthorized: '登录已失效，请重新登录',
 };
+
+const WEEKDAY_LABELS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
 const TOAST_MS = 3000;
 
@@ -31,6 +50,30 @@ const els = {
   calPrev: document.getElementById('cal-prev'),
   calNext: document.getElementById('cal-next'),
   calGrid: document.getElementById('cal-grid'),
+  sheetBackdrop: document.getElementById('sheet-backdrop'),
+  daySheet: document.getElementById('day-sheet'),
+  sheetTitle: document.getElementById('sheet-title'),
+  sheetSub: document.getElementById('sheet-sub'),
+  sheetIn: document.getElementById('sheet-in'),
+  sheetOut: document.getElementById('sheet-out'),
+  sheetRest: document.getElementById('sheet-rest'),
+  sheetResetRest: document.getElementById('sheet-reset-rest'),
+  sheetSave: document.getElementById('sheet-save'),
+  sheetClose: document.getElementById('sheet-close'),
+  sheetDelete: document.getElementById('sheet-delete'),
+  settingsPanel: document.getElementById('settings-panel'),
+  settingsClose: document.getElementById('settings-close'),
+  settingsSave: document.getElementById('settings-save'),
+  setPeriodStart: document.getElementById('set-period-start'),
+  setOvertimeStart: document.getElementById('set-overtime-start'),
+  setWorkdays: document.getElementById('set-workdays'),
+  setAutoHoliday: document.getElementById('set-auto-holiday'),
+  holidayMeta: document.getElementById('holiday-meta'),
+  holidayRefresh: document.getElementById('holiday-refresh'),
+  setPasswordOld: document.getElementById('set-password-old'),
+  setPasswordNew: document.getElementById('set-password-new'),
+  setPasswordSave: document.getElementById('set-password-save'),
+  logout: document.getElementById('logout'),
 };
 
 function pad2(value) {
@@ -73,6 +116,20 @@ function shiftMonth(month, delta) {
   return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}`;
 }
 
+function weekdayLabel(date) {
+  return WEEKDAY_LABELS[weekdayMon(date) - 1];
+}
+
+function isoDate(value) {
+  if (value === null || value === undefined) return '';
+  const text = String(value);
+  return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : text;
+}
+
+function errorMessage(error, fallback = '操作失败，请稍后重试') {
+  return ERROR_MESSAGES[error?.error] || fallback;
+}
+
 function showToast(message, kind = '') {
   if (!els.toast) return;
   if (toastTimer) clearTimeout(toastTimer);
@@ -87,6 +144,8 @@ function showToast(message, kind = '') {
 }
 
 function showLogin() {
+  closeDaySheet();
+  closeSettings();
   els.mainView.hidden = true;
   els.loginView.hidden = false;
 }
@@ -97,14 +156,15 @@ function showMain() {
 }
 
 async function api(path, options = {}) {
-  const headers = { ...(options.headers || {}) };
-  if (options.body !== undefined && !headers['Content-Type']) {
+  const { noAuthRedirect = false, ...init } = options;
+  const headers = { ...(init.headers || {}) };
+  if (init.body !== undefined && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json';
   }
 
   const response = await fetch(path, {
     credentials: 'same-origin',
-    ...options,
+    ...init,
     headers,
   });
 
@@ -115,7 +175,7 @@ async function api(path, options = {}) {
     body = null;
   }
 
-  if (response.status === 401) {
+  if (response.status === 401 && !noAuthRedirect) {
     showLogin();
     throw { status: 401, error: body?.error || 'unauthorized' };
   }
@@ -232,6 +292,308 @@ function render() {
 
   renderPunch(punch, today);
   renderCalendar(data);
+  renderHolidayMeta();
+}
+
+async function adoptBootstrap(data, viewMonth) {
+  if (viewMonth && data.view.month !== viewMonth) {
+    await load(viewMonth);
+    return;
+  }
+  state.data = data;
+  state.month = data.view.month;
+  render();
+}
+
+function renderHolidayMeta() {
+  const holiday = state.data?.holiday;
+  if (!holiday || !holiday.coverageMin || !holiday.coverageMax) {
+    els.holidayMeta.textContent = '暂无数据';
+    return;
+  }
+  const updated = isoDate(holiday.updatedAt);
+  const suffix = updated ? ` · 最后更新 ${updated}` : ' · 最后更新 暂无数据';
+  els.holidayMeta.textContent = `数据覆盖 ${holiday.coverageMin} – ${holiday.coverageMax}${suffix}`;
+}
+
+function buildWeekdays() {
+  els.setWorkdays.textContent = '';
+  WEEKDAY_LABELS.forEach((label, index) => {
+    const wrapper = document.createElement('label');
+    wrapper.className = 'weekday';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.value = String(index + 1);
+
+    const text = document.createElement('span');
+    text.textContent = label;
+
+    wrapper.append(checkbox, text);
+    els.setWorkdays.appendChild(wrapper);
+  });
+}
+
+function workdayCheckboxes() {
+  return Array.from(els.setWorkdays.querySelectorAll('input[type="checkbox"]'));
+}
+
+function populateSettings() {
+  const settings = state.data?.settings;
+  if (!settings) return;
+
+  els.setPeriodStart.value = String(settings.periodStartDay);
+  els.setOvertimeStart.value = settings.overtimeStart;
+
+  const workdays = new Set(settings.workdays);
+  for (const checkbox of workdayCheckboxes()) {
+    checkbox.checked = workdays.has(Number(checkbox.value));
+  }
+  els.setAutoHoliday.checked = Boolean(settings.autoHoliday);
+}
+
+function openSettings() {
+  if (!state.data) return;
+  populateSettings();
+  renderHolidayMeta();
+  els.setPasswordOld.value = '';
+  els.setPasswordNew.value = '';
+  els.settingsPanel.hidden = false;
+}
+
+function closeSettings() {
+  els.settingsPanel.hidden = true;
+}
+
+function findDay(date) {
+  return state.data?.view.days.find((day) => day.date === date) ?? null;
+}
+
+function restLabel(isRest) {
+  if (isRest === 1) return '休息日';
+  if (isRest === 0) return '工作日';
+  return '按设置（工作日/休息日）';
+}
+
+function updateSheetSub() {
+  const day = state.editingDay;
+  if (!day) return;
+
+  let type = day.type;
+  let holidayName = day.holidayName;
+  if (state.editingRest === 1) {
+    type = 'rest';
+    holidayName = null;
+  } else if (state.editingRest === 0) {
+    type = 'work';
+    holidayName = null;
+  }
+
+  const label = holidayName || (type === 'rest' ? '休息日' : '工作日');
+  const overtimeStart = state.data?.settings?.overtimeStart ?? '19:00';
+  const rule = type === 'rest' ? '全天算加班' : `${overtimeStart} 后算加班`;
+  els.sheetSub.textContent = `${label} · ${rule}`;
+}
+
+function updateRestUi() {
+  els.sheetRest.textContent = restLabel(state.editingRest);
+  els.sheetResetRest.hidden = state.editingRest === null;
+  updateSheetSub();
+}
+
+function updateEmptyHints() {
+  for (const input of [els.sheetIn, els.sheetOut]) {
+    const hint = input.parentElement?.querySelector('.sheet-row-empty');
+    if (hint) hint.hidden = input.value !== '';
+  }
+}
+
+function openDaySheet(date) {
+  const data = state.data;
+  if (!data) return;
+
+  if (date > data.now.date) {
+    showToast('不能修改未来日期', 'error');
+    return;
+  }
+
+  const day = findDay(date);
+  if (!day) return;
+
+  state.editingDate = date;
+  state.editingDay = day;
+  state.editingRest = day.isRest ?? null;
+
+  els.sheetTitle.textContent = `${formatMonthDay(date)} ${weekdayLabel(date)}`;
+  els.sheetIn.value = day.inAt ?? '';
+  els.sheetOut.value = day.outAt ?? '';
+  updateRestUi();
+  updateEmptyHints();
+
+  els.sheetBackdrop.hidden = false;
+  els.daySheet.hidden = false;
+}
+
+function closeDaySheet() {
+  els.daySheet.hidden = true;
+  els.sheetBackdrop.hidden = true;
+  state.editingDate = null;
+  state.editingDay = null;
+  state.editingRest = null;
+}
+
+function cycleRest() {
+  if (state.editingRest === null) state.editingRest = 1;
+  else if (state.editingRest === 1) state.editingRest = 0;
+  else state.editingRest = null;
+  updateRestUi();
+}
+
+function resetRest() {
+  state.editingRest = null;
+  updateRestUi();
+}
+
+async function saveDay() {
+  if (!state.editingDate) return;
+
+  const date = state.editingDate;
+  const viewMonth = state.month;
+  const inAt = els.sheetIn.value || null;
+  const outAt = els.sheetOut.value || null;
+  const isRest = state.editingRest;
+
+  els.sheetSave.disabled = true;
+  try {
+    const data = await api(`/api/days/${encodeURIComponent(date)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ inAt, outAt, isRest }),
+    });
+    closeDaySheet();
+    await adoptBootstrap(data, viewMonth);
+    showToast('记录已保存', 'success');
+  } catch (error) {
+    if (error.status !== 401) {
+      showToast(errorMessage(error, '保存失败，请稍后重试'), 'error');
+    }
+  } finally {
+    els.sheetSave.disabled = false;
+  }
+}
+
+async function deleteDay() {
+  if (!state.editingDate) return;
+  if (!window.confirm('确定删除这一天的记录吗？')) return;
+
+  const date = state.editingDate;
+  const viewMonth = state.month;
+
+  els.sheetDelete.disabled = true;
+  try {
+    const data = await api(`/api/days/${encodeURIComponent(date)}`, { method: 'DELETE' });
+    closeDaySheet();
+    await adoptBootstrap(data, viewMonth);
+    showToast('记录已删除', 'success');
+  } catch (error) {
+    if (error.status !== 401) {
+      showToast(errorMessage(error, '删除失败，请稍后重试'), 'error');
+    }
+  } finally {
+    els.sheetDelete.disabled = false;
+  }
+}
+
+async function saveSettings() {
+  const viewMonth = state.month;
+  const periodStartDay = Number(els.setPeriodStart.value);
+  const overtimeStart = els.setOvertimeStart.value;
+  const workdays = workdayCheckboxes()
+    .filter((checkbox) => checkbox.checked)
+    .map((checkbox) => Number(checkbox.value))
+    .sort((a, b) => a - b);
+  const autoHoliday = els.setAutoHoliday.checked;
+  const query = viewMonth ? `?month=${encodeURIComponent(viewMonth)}` : '';
+
+  els.settingsSave.disabled = true;
+  try {
+    const data = await api(`/api/settings${query}`, {
+      method: 'PUT',
+      body: JSON.stringify({ periodStartDay, overtimeStart, workdays, autoHoliday }),
+    });
+    await adoptBootstrap(data, viewMonth);
+    populateSettings();
+    showToast('设置已保存', 'success');
+  } catch (error) {
+    if (error.status !== 401) {
+      showToast(errorMessage(error, '保存失败，请稍后重试'), 'error');
+    }
+  } finally {
+    els.settingsSave.disabled = false;
+  }
+}
+
+async function refreshHolidays() {
+  if (els.holidayRefresh.disabled) return;
+
+  els.holidayRefresh.disabled = true;
+  const originalLabel = els.holidayRefresh.textContent;
+  els.holidayRefresh.textContent = '更新中…';
+
+  try {
+    const result = await api('/api/holidays/refresh', { method: 'POST' });
+    if (state.data) state.data.holiday = result.holiday;
+    renderHolidayMeta();
+    showToast('节假日数据已更新', 'success');
+    await load(state.month);
+  } catch (error) {
+    if (error.status !== 401) {
+      showToast('更新失败，继续使用现有数据', 'error');
+    }
+  } finally {
+    els.holidayRefresh.disabled = false;
+    els.holidayRefresh.textContent = originalLabel;
+  }
+}
+
+async function savePassword() {
+  const oldPassword = els.setPasswordOld.value;
+  const newPassword = els.setPasswordNew.value;
+
+  els.setPasswordSave.disabled = true;
+  try {
+    await api('/api/password', {
+      method: 'POST',
+      noAuthRedirect: true,
+      body: JSON.stringify({ oldPassword, newPassword }),
+    });
+    els.setPasswordOld.value = '';
+    els.setPasswordNew.value = '';
+    showToast('密码已修改', 'success');
+  } catch (error) {
+    if (error.error === 'unauthorized') {
+      showLogin();
+      return;
+    }
+    showToast(errorMessage(error, '密码修改失败，请稍后重试'), 'error');
+  } finally {
+    els.setPasswordSave.disabled = false;
+  }
+}
+
+async function logout() {
+  try {
+    await api('/api/logout', { method: 'POST', noAuthRedirect: true });
+  } catch {
+    // Logging out is local-first; always return to the login view.
+  }
+
+  state.data = null;
+  state.month = null;
+  closeDaySheet();
+  closeSettings();
+  els.loginPassword.value = '';
+  els.loginError.textContent = '';
+  showLogin();
 }
 
 async function doPunch(type) {
@@ -246,7 +608,7 @@ async function doPunch(type) {
     showToast(type === 'in' ? '上班打卡成功' : '下班打卡成功', 'success');
   } catch (error) {
     if (error.status === 401) return;
-    showToast(PUNCH_ERRORS[error.error] || '操作失败，请稍后重试', 'error');
+    showToast(errorMessage(error), 'error');
   }
 }
 
@@ -282,10 +644,12 @@ async function onLogin(event) {
 }
 
 function bindEvents() {
+  buildWeekdays();
+
   els.loginForm.addEventListener('submit', onLogin);
   els.btnIn.addEventListener('click', () => doPunch('in'));
   els.btnOut.addEventListener('click', () => doPunch('out'));
-  els.settingsBtn.addEventListener('click', () => showToast('设置功能即将上线'));
+  els.settingsBtn.addEventListener('click', openSettings);
   els.calPrev.addEventListener('click', () => {
     if (!state.month) return;
     load(shiftMonth(state.month, -1));
@@ -294,6 +658,26 @@ function bindEvents() {
     if (!state.month) return;
     load(shiftMonth(state.month, 1));
   });
+  els.calGrid.addEventListener('click', (event) => {
+    const cell = event.target.closest('.cal-cell');
+    if (!cell || !cell.dataset.date) return;
+    openDaySheet(cell.dataset.date);
+  });
+
+  els.sheetClose.addEventListener('click', closeDaySheet);
+  els.sheetBackdrop.addEventListener('click', closeDaySheet);
+  els.sheetRest.addEventListener('click', cycleRest);
+  els.sheetResetRest.addEventListener('click', resetRest);
+  els.sheetSave.addEventListener('click', saveDay);
+  els.sheetDelete.addEventListener('click', deleteDay);
+  els.sheetIn.addEventListener('input', updateEmptyHints);
+  els.sheetOut.addEventListener('input', updateEmptyHints);
+
+  els.settingsClose.addEventListener('click', closeSettings);
+  els.settingsSave.addEventListener('click', saveSettings);
+  els.holidayRefresh.addEventListener('click', refreshHolidays);
+  els.setPasswordSave.addEventListener('click', savePassword);
+  els.logout.addEventListener('click', logout);
 }
 
 bindEvents();
