@@ -366,7 +366,35 @@ test('打卡：非法 type 返回 400 invalid_type', async (t) => {
   assert.deepEqual(res.body, { error: 'invalid_type' });
 });
 
-test('补录：缺省字段视为 null（整体替换并等价删除）', async (t) => {
+test('补录：缺少或非法请求体返回 400 invalid_body', async (t) => {
+  const { db, server, cookie } = await setup(t);
+
+  const missing = await fetch(`${server.baseUrl}/api/days/2026-10-27`, {
+    method: 'PUT',
+    headers: { cookie },
+  });
+  assert.equal(missing.status, 400);
+  assert.deepEqual(await missing.json(), { error: 'invalid_body' });
+
+  const array = await fetch(`${server.baseUrl}/api/days/2026-10-27`, {
+    method: 'PUT',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: '[]',
+  });
+  assert.equal(array.status, 400);
+  assert.deepEqual(await array.json(), { error: 'invalid_body' });
+
+  const empty = await fetch(`${server.baseUrl}/api/days/2026-10-27`, {
+    method: 'PUT',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: '{}',
+  });
+  assert.equal(empty.status, 400);
+  assert.deepEqual(await empty.json(), { error: 'invalid_body' });
+  assert.equal(getDay(db, '2026-10-27'), null);
+});
+
+test('补录：显式全 null 等价删除', async (t) => {
   const { db, put } = await setup(t);
   upsertDay(db, {
     date: '2026-10-27',
@@ -376,12 +404,12 @@ test('补录：缺省字段视为 null（整体替换并等价删除）', async 
     isRest: 1,
   });
 
-  const res = await put('/api/days/2026-10-27', {});
+  const res = await put('/api/days/2026-10-27', { inAt: null, outAt: null, isRest: null });
 
   assert.equal(res.status, 200);
   assert.equal(getDay(db, '2026-10-27'), null);
 
-  const again = await put('/api/days/2026-10-27', {});
+  const again = await put('/api/days/2026-10-27', { inAt: null, outAt: null, isRest: null });
   assert.equal(again.status, 200);
   assert.equal(getDay(db, '2026-10-27'), null);
 });
@@ -402,13 +430,91 @@ test('补录：上下班时间相同不计加班', async (t) => {
   assert.equal(resolved.incomplete, false);
 });
 
-test('凌晨只回看最近 7 天', async (t) => {
+test('补录：凌晨相等时间记 0 且不判次日（工作日与休息日）', async (t) => {
+  const { put } = await setup(t);
+
+  for (const time of ['00:00', '01:00', '05:59', '06:00']) {
+    const work = await put('/api/days/2026-10-27', {
+      inAt: time,
+      outAt: time,
+      isRest: null,
+    });
+    assert.equal(work.status, 200, `work ${time}`);
+    const workDay = day(work.body, '2026-10-27');
+    assert.equal(workDay.outNextDay, 0, `work outNextDay ${time}`);
+    assert.equal(workDay.overtimeMinutes, 0, `work overtime ${time}`);
+
+    const rest = await put('/api/days/2026-10-27', {
+      inAt: time,
+      outAt: time,
+      isRest: 1,
+    });
+    assert.equal(rest.status, 200, `rest ${time}`);
+    const restDay = day(rest.body, '2026-10-27');
+    assert.equal(restDay.outNextDay, 0, `rest outNextDay ${time}`);
+    assert.equal(restDay.overtimeMinutes, 0, `rest overtime ${time}`);
+  }
+});
+
+test('补录：相等时间不触发次日冲突', async (t) => {
+  const { db, put } = await setup(t);
+  upsertDay(db, {
+    date: '2026-10-28',
+    inAt: '08:00',
+    outAt: '18:00',
+    outNextDay: 0,
+    isRest: null,
+  });
+
+  const res = await put('/api/days/2026-10-27', {
+    inAt: '01:00',
+    outAt: '01:00',
+    isRest: null,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(day(res.body, '2026-10-27').outNextDay, 0);
+  assert.equal(getDay(db, '2026-10-27').outNextDay, 0);
+});
+
+test('补录：有效下班时间在未来返回 400 future_time', async (t) => {
+  const { put } = await setup(t);
+
+  const cases = [
+    ['2026-10-28', { inAt: '09:00', outAt: '01:00' }],
+    ['2026-10-28', { outAt: '01:00' }],
+    ['2026-10-27', { inAt: '22:00', outAt: '10:00' }],
+    ['2026-10-27', { inAt: '23:00', outAt: '22:00' }],
+  ];
+
+  for (const [date, body] of cases) {
+    const res = await put(`/api/days/${date}`, { ...body, isRest: null });
+    assert.equal(res.status, 400, `${date} ${JSON.stringify(body)}`);
+    assert.deepEqual(res.body, { error: 'future_time' });
+  }
+});
+
+test('补录：昨天跨零点且有效下班时间已过仍可保存', async (t) => {
+  const { db, put } = await setup(t);
+
+  const res = await put('/api/days/2026-10-27', {
+    inAt: '22:00',
+    outAt: '01:00',
+    isRest: null,
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(day(res.body, '2026-10-27').outNextDay, 1);
+  assert.equal(getDay(db, '2026-10-27').outNextDay, 1);
+});
+
+test('凌晨只给昨天补下班，更早的缺口不处理', async (t) => {
   const { db, post } = await setup(t, {
-    // 上海 2026-10-30 01:30
+    // 上海 2026-10-30 01:30，昨天是 10-29
     now: () => new Date('2026-10-29T17:30:00Z'),
   });
   upsertDay(db, {
-    date: '2026-10-22',
+    date: '2026-10-27',
     inAt: '09:00',
     outAt: null,
     outNextDay: 0,
@@ -418,9 +524,10 @@ test('凌晨只回看最近 7 天', async (t) => {
   const tooOld = await post('/api/punch', { type: 'out' });
   assert.equal(tooOld.status, 409);
   assert.deepEqual(tooOld.body, { error: 'not_clocked_in' });
+  assert.equal(getDay(db, '2026-10-27').outAt, null);
 
   upsertDay(db, {
-    date: '2026-10-23',
+    date: '2026-10-29',
     inAt: '09:00',
     outAt: null,
     outNextDay: 0,
@@ -429,8 +536,38 @@ test('凌晨只回看最近 7 天', async (t) => {
 
   const found = await post('/api/punch', { type: 'out' });
   assert.equal(found.status, 200);
-  assert.equal(getDay(db, '2026-10-23').outAt, '01:30');
-  assert.equal(getDay(db, '2026-10-22').outAt, null);
+  assert.equal(getDay(db, '2026-10-29').outAt, '01:30');
+  assert.equal(getDay(db, '2026-10-27').outAt, null);
+});
+
+test('凌晨重复点下班：第一次成功，第二次 409 且不关闭更早记录', async (t) => {
+  const { db, post } = await setup(t, {
+    // 上海 2026-10-30 01:30，昨天是 10-29
+    now: () => new Date('2026-10-29T17:30:00Z'),
+  });
+  upsertDay(db, {
+    date: '2026-10-29',
+    inAt: '09:00',
+    outAt: null,
+    outNextDay: 0,
+    isRest: null,
+  });
+  upsertDay(db, {
+    date: '2026-10-27',
+    inAt: '09:00',
+    outAt: null,
+    outNextDay: 0,
+    isRest: null,
+  });
+
+  const first = await post('/api/punch', { type: 'out' });
+  assert.equal(first.status, 200);
+  assert.equal(getDay(db, '2026-10-29').outAt, '01:30');
+
+  const second = await post('/api/punch', { type: 'out' });
+  assert.equal(second.status, 409);
+  assert.deepEqual(second.body, { error: 'not_clocked_in' });
+  assert.equal(getDay(db, '2026-10-27').outAt, null);
 });
 
 test('打卡跨月补下班返回目标月份', async (t) => {

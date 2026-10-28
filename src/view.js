@@ -21,6 +21,7 @@ import { holidayLookup, parseHolidayData } from './holiday.js';
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const BUNDLED_FETCHED_AT = new Date(0).toISOString();
 
 function has(value, key) {
   return Object.prototype.hasOwnProperty.call(value, key);
@@ -146,6 +147,7 @@ export function buildBootstrap({ db, now = new Date(), month } = {}) {
     coverageMin: row?.coverageMin ?? null,
     coverageMax: row?.coverageMax ?? null,
     updatedAt: row?.fetchedAt ?? null,
+    bundled: row?.fetchedAt === BUNDLED_FETCHED_AT,
     auto: settings.autoHoliday,
   };
 
@@ -176,13 +178,10 @@ export function buildBootstrap({ db, now = new Date(), month } = {}) {
 
   let delayedOutDate = null;
   if (currentTime < '06:00') {
-    for (let offset = 1; offset <= 7; offset += 1) {
-      const date = addDays(todayDate, -offset);
-      const record = getDay(db, date);
-      if (record && record.inAt && !record.outAt) {
-        delayedOutDate = date;
-        break;
-      }
+    const yesterday = addDays(todayDate, -1);
+    const record = getDay(db, yesterday);
+    if (record?.inAt && !record.outAt && !getDay(db, todayDate)) {
+      delayedOutDate = yesterday;
     }
   }
 

@@ -76,6 +76,7 @@ test('结构完整、today 为空、可上班不可下班', async (t) => {
     coverageMin: null,
     coverageMax: null,
     updatedAt: null,
+    bundled: false,
     auto: true,
   });
   assert.deepEqual(body.now, { date: '2026-10-28', time: '09:41' });
@@ -195,6 +196,7 @@ test('日历每天都有，节假日带名称且类型为 rest', async (t) => {
     coverageMin: '2026-10-01',
     coverageMax: '2026-10-01',
     updatedAt: '2026-10-28T00:00:00.000Z',
+    bundled: false,
     auto: true,
   });
   assert.equal(body.view.days.length, 31);
@@ -271,4 +273,48 @@ test('凌晨可补前日下班', async (t) => {
     canOut: true,
     delayedOutDate: '2026-10-27',
   });
+});
+
+test('凌晨：今天有记录时不提供延迟下班', async (t) => {
+  const { db, get } = await setup(t, {
+    // 上海 2026-10-28 01:41
+    now: () => new Date('2026-10-27T17:41:00Z'),
+  });
+  upsertDay(db, { date: '2026-10-27', inAt: '09:00', outAt: null, outNextDay: 0, isRest: null });
+  upsertDay(db, { date: '2026-10-28', inAt: '09:00', outAt: null, outNextDay: 0, isRest: null });
+
+  const { body } = await get('/api/bootstrap');
+  assert.equal(body.punch.delayedOutDate, null);
+  assert.equal(body.punch.canOut, true);
+  assert.equal(body.punch.canIn, false);
+});
+
+test('凌晨：今天已有完整记录时不提供延迟下班', async (t) => {
+  const { db, get } = await setup(t, {
+    // 上海 2026-10-28 01:41
+    now: () => new Date('2026-10-27T17:41:00Z'),
+  });
+  upsertDay(db, { date: '2026-10-27', inAt: '09:00', outAt: null, outNextDay: 0, isRest: null });
+  upsertDay(db, { date: '2026-10-28', inAt: '09:00', outAt: '18:00', outNextDay: 0, isRest: null });
+
+  const { body } = await get('/api/bootstrap');
+  assert.deepEqual(body.punch, {
+    canIn: false,
+    canOut: false,
+    delayedOutDate: null,
+  });
+});
+
+test('内置快照的 holiday 标记为 bundled', async (t) => {
+  const { db, get } = await setup(t);
+  saveHolidayRow(db, {
+    json: JSON.stringify({ holidays: { '2026-10-01': 'x,国庆节' }, workdays: {} }),
+    coverageMin: '2026-10-01',
+    coverageMax: '2026-10-01',
+    fetchedAt: '1970-01-01T00:00:00.000Z',
+  });
+
+  const { body } = await get('/api/bootstrap?month=2026-10');
+  assert.equal(body.holiday.bundled, true);
+  assert.equal(body.holiday.updatedAt, '1970-01-01T00:00:00.000Z');
 });

@@ -712,7 +712,7 @@ Expected: FAIL
 - [ ] **Step 3: 实现 `src/view.js` 与路由**
 
 - 读设置与 holiday 行（无数据时 `holiday` 字段为 `{ coverageMin: null, coverageMax: null, updatedAt: null, auto }`）。
-- `punch` 计算：`canIn = !today?.inAt`；`canOut = Boolean(today?.inAt && !today?.outAt)`；`delayedOutDate`：当 `now.time` 在 `00:00–05:59` 时，取最近 7 天内“有上班无下班”的最近一天（不含今天）；否则 `null`。若 `delayedOutDate` 存在，`canOut` 也视为可用（响应中 `canOut: true`）。
+- `punch` 计算：`canIn = !today?.inAt`；`canOut = Boolean(today?.inAt && !today?.outAt)`；`delayedOutDate`：当 `now.time` 在 `00:00–05:59`、昨天（紧邻的前一天，不含今天）存在“有上班无下班”的记录且今天没有任何记录时，取昨天；否则 `null`。若 `delayedOutDate` 存在，`canOut` 也视为可用（响应中 `canOut: true`）。更早的缺口只能通过补录处理。
 - `days` 用 `listDays` 取 `min(period.start, month 第一天) .. max(period.end, month 最后一天)` 的记录，再逐日映射；无记录的天补空对象。
 - 合计只加 `[period.start, period.end]` 内、`inAt/outAt` 齐全的记录。
 
@@ -787,7 +787,7 @@ Expected: FAIL
 打卡：
 
 - `in`：若今天已有 `inAt` → 409；否则 upsert（保留已有 `outAt`/`isRest`），`inAt = timeInTz(now)`。
-- `out`：优先补今天的未闭合记录（`outNextDay = 0`）；否则若 `now.time < '06:00'`，取最近 7 天内最近一条“有上班无下班”的日期作为目标（`outNextDay = 1`），若其次日存在任何记录 → 409 `next_day_conflict`；再否则 409。
+- `out`：优先补今天的未闭合记录（`outNextDay = 0`）；否则若 `now.time < '06:00'`，仅取昨天（紧邻的前一天）的“有上班无下班”记录作为目标（`outNextDay = 1`），若今天（目标次日）存在任何记录 → 409 `next_day_conflict`；再否则 409。更早的缺口只能通过补录处理。
 - 返回该记录所属月份的 Bootstrap。
 
 补录（`PUT /api/days/:date`）：
