@@ -816,7 +816,7 @@ git commit -m "feat: add punch, backfill and delete endpoints"
 
 **Files:**
 - Create: `src/holiday-store.js`
-- Create: `data/chinese-days.json`
+- Create: `assets/chinese-days.json`（放在 `assets/` 而不是 `data/`：`data/` 是运行时数据卷，Docker 会挂载覆盖它）
 - Modify: `src/app.js`
 - Modify: `src/server.js`
 - Test: `tests/holiday-store.test.js`
@@ -824,15 +824,15 @@ git commit -m "feat: add punch, backfill and delete endpoints"
 **Interfaces:**
 - Consumes: `fetchHolidayData`、`parseHolidayData`、`holidayLookup`、`getHolidayRow`/`saveHolidayRow`
 - Produces:
-  - `seedHolidayIfEmpty(db, { bundledPath = 'data/chinese-days.json' }): { seeded: boolean }`
+  - `seedHolidayIfEmpty(db, { bundledPath = 'assets/chinese-days.json' }): { seeded: boolean }`
   - `refreshHoliday({ db, fetchImpl, url }): Promise<{ coverageMin, coverageMax, updatedAt }>` — 失败抛错且不修改库
   - `startHolidayScheduler({ db, fetchImpl, url, intervalMs = 7*24*60*60*1000 }): () => void` — 启动后立即尝试一次（失败吞掉并记录），之后按间隔执行
   - 路由：`POST /api/holidays/refresh`（受保护）→ 成功 `{ holiday: {...} }`，失败 502 `{ error: 'refresh_failed' }`
 
 - [ ] **Step 1: 准备内置快照**
 
-Run: `node -e "fetch('https://cdn.jsdelivr.net/npm/chinese-days/dist/chinese-days.json').then(r=>r.text()).then(t=>require('fs').writeFileSync('data/chinese-days.json', t))"`（在项目根执行）
-Expected: `data/chinese-days.json` 大小约 37 KB，能被 `parseHolidayData` 解析；若网络不可用，用前面 npm 包里的 `dist/chinese-days.json` 复制过来
+Run: `node -e "const fs=require('fs'); fs.mkdirSync('assets',{recursive:true}); fetch('https://cdn.jsdelivr.net/npm/chinese-days/dist/chinese-days.json').then(r=>r.text()).then(t=>fs.writeFileSync('assets/chinese-days.json', t))"`（在项目根执行）
+Expected: `assets/chinese-days.json` 大小约 37 KB，能被 `parseHolidayData` 解析；若网络不可用，用前面 npm 包里的 `dist/chinese-days.json` 复制过来
 
 - [ ] **Step 2: 写失败测试**
 
@@ -857,7 +857,7 @@ Expected: FAIL
 - 播种：`getHolidayRow` 为空时读内置文件、`parseHolidayData`、`saveHolidayRow`（`fetchedAt = new Date(0).toISOString()` 表示“内置”）。
 - 刷新：拉取 → 解析 → `saveHolidayRow`（`fetchedAt = new Date().toISOString()`），返回 meta；任何错误向上抛，库不变。
 - 调度器：`setTimeout` 链或 `setInterval`，`unref()`，返回 `stop()`。
-- `server.js`：`openDb` 后 `seedHolidayIfEmpty`，再 `startHolidayScheduler`。
+- `server.js`：`openDb` 后 `seedHolidayIfEmpty`，再 `startHolidayScheduler`；**播种失败只记录 warning，不阻止启动**（节假日数据缺失时回退到按工作日设置判断）。
 - `bootstrap` 的 `holiday` 字段在 Task 7 已从 `getHolidayRow` 读取，本任务只确保数据存在。
 
 - [ ] **Step 5: 运行确认通过**
@@ -868,7 +868,7 @@ Expected: PASS
 - [ ] **Step 6: 提交**
 
 ```bash
-git add src/holiday-store.js src/app.js src/server.js data/chinese-days.json tests/holiday-store.test.js
+git add src/holiday-store.js src/app.js src/server.js assets/chinese-days.json tests/holiday-store.test.js
 git commit -m "feat: seed and refresh holiday data with weekly scheduler"
 ```
 
@@ -998,7 +998,7 @@ git commit -m "feat: add day editor sheet and settings panel"
 
 - [ ] **Step 1: 编写 Docker 文件**
 
-`Dockerfile`：两阶段（builder 装 `python3 make g++` 后 `npm ci --omit=dev`；运行阶段 `node:24-slim`，复制 `src public data package*.json node_modules`，`ENV TZ=Asia/Shanghai NODE_ENV=production`，`EXPOSE 3000`，`RUN mkdir -p /app/data`，`CMD ["node","src/server.js"]`）。容器以 root 运行，保证绑定挂载的 `./data` 在 Linux 服务器上可写。
+`Dockerfile`：两阶段（builder 装 `python3 make g++` 后 `npm ci --omit=dev`；运行阶段 `node:24-slim`，复制 `src public assets package*.json node_modules`，`ENV TZ=Asia/Shanghai NODE_ENV=production`，`EXPOSE 3000`，`RUN mkdir -p /app/data`，`CMD ["node","src/server.js"]`）。容器以 root 运行，保证绑定挂载的 `./data` 在 Linux 服务器上可写。内置快照在 `/app/assets/chinese-days.json`，不在数据卷里。
 
 `docker-compose.yml`：
 
@@ -1022,7 +1022,7 @@ services:
       retries: 3
 ```
 
-`.dockerignore`：`node_modules`、`data`、`.git`、`.superpowers`、`.playwright-mcp`、`docs`。
+`.dockerignore`：`node_modules`、`data`、`.git`、`.superpowers`、`.playwright-mcp`、`docs`。`assets/` 必须打进镜像（内置快照），`data/` 只用于运行时数据库。
 
 - [ ] **Step 2: 构建并冒烟测试**
 
