@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#2f45d0" />
+    <title>加班记录</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <section id="login-view" class="login-view">
+        <h1 class="login-title">加班记录</h1>
+        <p class="login-hint">请输入密码登录</p>
+        <form id="login-form" class="login-form">
+          <label class="field-label" for="login-password">密码</label>
+          <input
+            id="login-password"
+            class="text-input"
+            type="password"
+            name="password"
+            autocomplete="current-password"
+            required
+          />
+          <p id="login-error" class="login-error" role="alert"></p>
+          <button class="primary-btn" type="submit">登录</button>
+        </form>
+      </section>
+
+      <main id="main-view" class="main-view" hidden>
+        <section class="stat-card">
+          <div class="stat-head">
+            <span id="period-range" class="period-range"></span>
+            <button id="settings-btn" class="icon-btn" type="button" aria-label="设置" title="设置">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+                <path
+                  fill="currentColor"
+                  d="M12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2Zm9 4.72v-2.24l-2.4-.8a7.2 7.2 0 0 0-.72-1.74l1.14-2.26-1.58-1.58-2.26 1.14a7.2 7.2 0 0 0-1.74-.72L12.64 2.5h-2.24L9.6 4.9c-.62.16-1.2.4-1.74.72L5.6 4.48 4.02 6.06l1.14 2.26c-.32.54-.56 1.12-.72 1.74l-2.4.8v2.24l2.4.8c.16.62.4 1.2.72 1.74l-1.14 2.26 1.58 1.58 2.26-1.14c.54.32 1.12.56 1.74.72l.8 2.4h2.24l.8-2.4c.62-.16 1.2-.4 1.74-.72l2.26 1.14 1.58-1.58-1.14-2.26c.32-.54.56-1.12.72-1.74l2.4-.8Z"
+                />
+              </svg>
+            </button>
+          </div>
+          <div id="period-total" class="stat-total"></div>
+          <div id="today-ot" class="stat-today"></div>
+        </section>
+
+        <section class="punch-row">
+          <button id="btn-in" class="punch-btn" type="button">上班</button>
+          <button id="btn-out" class="punch-btn" type="button">下班</button>
+          <p id="punch-done" class="punch-done" hidden>今日完成</p>
+        </section>
+
+        <section class="calendar">
+          <div class="cal-head">
+            <button id="cal-prev" class="cal-nav" type="button" aria-label="上个月">‹</button>
+            <span id="cal-title" class="cal-title"></span>
+            <button id="cal-next" class="cal-nav" type="button" aria-label="下个月">›</button>
+          </div>
+          <div id="cal-grid" class="cal-grid" role="grid"></div>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <div id="sheet-backdrop" class="sheet-backdrop" hidden></div>
+    <section
+      id="day-sheet"
+      class="day-sheet"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="sheet-title"
+      tabindex="-1"
+      hidden
+    >
+      <div class="sheet-grabber" aria-hidden="true"></div>
+      <header class="sheet-head">
+        <div class="sheet-heading">
+          <h2 id="sheet-title" class="sheet-title"></h2>
+          <p id="sheet-sub" class="sheet-sub"></p>
+        </div>
+        <button id="sheet-close" class="icon-btn sheet-close" type="button" aria-label="关闭">×</button>
+      </header>
+      <div class="sheet-body">
+        <label id="row-in" class="sheet-row" for="sheet-in">
+          <span class="sheet-row-label">上班</span>
+          <span class="sheet-row-control">
+            <input id="sheet-in" class="sheet-time" type="time" step="60" />
+            <span class="sheet-row-empty">未打卡</span>
+          </span>
+        </label>
+        <label id="row-out" class="sheet-row" for="sheet-out">
+          <span class="sheet-row-label">下班</span>
+          <span class="sheet-row-control">
+            <input id="sheet-out" class="sheet-time" type="time" step="60" />
+            <span class="sheet-row-empty">未打卡</span>
+          </span>
+        </label>
+        <div class="sheet-rest-row">
+          <button id="sheet-rest" class="sheet-rest" type="button">按设置（工作日/休息日）</button>
+          <button id="sheet-reset-rest" class="link-btn" type="button" hidden>恢复默认</button>
+        </div>
+      </div>
+      <div class="sheet-actions">
+        <button id="sheet-delete" class="danger-btn" type="button">删除这一天</button>
+        <button id="sheet-save" class="primary-btn sheet-save" type="button">保存</button>
+      </div>
+      <p class="sheet-hint">只填一边也可以保存，未完成当天不计入合计。</p>
+    </section>
+
+    <section
+      id="settings-panel"
+      class="settings-panel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="settings-title"
+      tabindex="-1"
+      hidden
+    >
+      <div class="settings-inner">
+        <header class="panel-head">
+          <h2 id="settings-title" class="panel-title">设置</h2>
+          <button id="settings-close" class="icon-btn" type="button" aria-label="关闭设置">×</button>
+        </header>
+
+        <section class="settings-section">
+          <h3 class="settings-heading">周期与加班</h3>
+          <label class="settings-field" for="set-period-start">
+            <span class="settings-label">周期起始日</span>
+            <input
+              id="set-period-start"
+              class="text-input"
+              type="number"
+              min="1"
+              max="28"
+              step="1"
+              inputmode="numeric"
+            />
+          </label>
+          <p class="settings-hint">每月从这一天到次月前一天算一个周期（1–28）。</p>
+          <label class="settings-field" for="set-overtime-start">
+            <span class="settings-label">加班起算时间</span>
+            <input id="set-overtime-start" class="text-input" type="time" step="60" />
+          </label>
+          <div class="settings-field settings-field-block">
+            <span id="set-workdays-label" class="settings-label">工作日</span>
+            <div id="set-workdays" class="weekdays" role="group" aria-labelledby="set-workdays-label"></div>
+          </div>
+          <label class="settings-toggle" for="set-auto-holiday">
+            <input id="set-auto-holiday" type="checkbox" />
+            <span>自动识别中国法定节假日</span>
+          </label>
+          <div class="holiday-meta">
+            <span id="holiday-meta" class="holiday-meta-text"></span>
+            <button id="holiday-refresh" class="link-btn" type="button">立即更新</button>
+          </div>
+          <button id="settings-save" class="primary-btn" type="button">保存设置</button>
+        </section>
+
+        <section class="settings-section">
+          <h3 class="settings-heading">修改密码</h3>
+          <label class="settings-field" for="set-password-old">
+            <span class="settings-label">原密码</span>
+            <input
+              id="set-password-old"
+              class="text-input"
+              type="password"
+              autocomplete="current-password"
+            />
+          </label>
+          <label class="settings-field" for="set-password-new">
+            <span class="settings-label">新密码</span>
+            <input
+              id="set-password-new"
+              class="text-input"
+              type="password"
+              autocomplete="new-password"
+            />
+          </label>
+          <button id="set-password-save" class="primary-btn" type="button">修改密码</button>
+        </section>
+
+        <section class="settings-section">
+          <button id="logout" class="danger-btn logout-btn" type="button">退出登录</button>
+        </section>
+      </div>
+    </section>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

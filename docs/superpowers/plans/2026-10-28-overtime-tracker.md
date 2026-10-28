@@ -199,11 +199,11 @@ test('按上海时区取日期和时间', () => {
   assert.equal(timeInTz(d), '01:05');
 });
 
-test('周期：19 日之后属于本月 26 日起的周期', () => {
+test('周期：26 日之后属于本月 26 日起的周期', () => {
   assert.deepEqual(periodFor('2026-10-28', 26), { start: '2026-10-26', end: '2026-11-25' });
 });
 
-test('周期：19 日之前属于上月 26 日起的周期', () => {
+test('周期：26 日之前属于上月 26 日起的周期', () => {
   assert.deepEqual(periodFor('2026-10-01', 26), { start: '2026-09-26', end: '2026-10-25' });
 });
 
@@ -677,7 +677,7 @@ git commit -m "feat: add password auth with sessions and rate limiting"
     "period": { "start": "2026-09-26", "end": "2026-10-25", "totalMinutes": 0 },
     "days": [
       { "date": "2026-10-01", "inAt": null, "outAt": null, "outNextDay": 0, "isRest": null,
-        "type": "rest", "holidayName": "国庆节", "overtimeMinutes": 0, "incomplete": false }
+        "type": "rest", "holidayName": "国庆节", "baseType": "rest", "baseHolidayName": "国庆节", "overtimeMinutes": 0, "incomplete": false }
     ]
   }
 }
@@ -712,7 +712,7 @@ Expected: FAIL
 - [ ] **Step 3: 实现 `src/view.js` 与路由**
 
 - 读设置与 holiday 行（无数据时 `holiday` 字段为 `{ coverageMin: null, coverageMax: null, updatedAt: null, auto }`）。
-- `punch` 计算：`canIn = !today?.inAt`；`canOut = Boolean(today?.inAt && !today?.outAt)`；`delayedOutDate`：当 `now.time` 在 `00:00–05:59` 时，取最近 7 天内“有上班无下班”的最近一天（不含今天）；否则 `null`。若 `delayedOutDate` 存在，`canOut` 也视为可用（响应中 `canOut: true`）。
+- `punch` 计算：`canIn = !today?.inAt`；`canOut = Boolean(today?.inAt && !today?.outAt)`；`delayedOutDate`：当 `now.time` 在 `00:00–05:59`、昨天（紧邻的前一天，不含今天）存在“有上班无下班”的记录且今天没有任何记录时，取昨天；否则 `null`。若 `delayedOutDate` 存在，`canOut` 也视为可用（响应中 `canOut: true`）。更早的缺口只能通过补录处理。
 - `days` 用 `listDays` 取 `min(period.start, month 第一天) .. max(period.end, month 最后一天)` 的记录，再逐日映射；无记录的天补空对象。
 - 合计只加 `[period.start, period.end]` 内、`inAt/outAt` 齐全的记录。
 
@@ -787,7 +787,7 @@ Expected: FAIL
 打卡：
 
 - `in`：若今天已有 `inAt` → 409；否则 upsert（保留已有 `outAt`/`isRest`），`inAt = timeInTz(now)`。
-- `out`：优先补今天的未闭合记录（`outNextDay = 0`）；否则若 `now.time < '06:00'`，取最近 7 天内最近一条“有上班无下班”的日期作为目标（`outNextDay = 1`），若其次日存在任何记录 → 409 `next_day_conflict`；再否则 409。
+- `out`：优先补今天的未闭合记录（`outNextDay = 0`）；否则若 `now.time < '06:00'`，仅取昨天（紧邻的前一天）的“有上班无下班”记录作为目标（`outNextDay = 1`），若今天（目标次日）存在任何记录 → 409 `next_day_conflict`；再否则 409。更早的缺口只能通过补录处理。
 - 返回该记录所属月份的 Bootstrap。
 
 补录（`PUT /api/days/:date`）：
@@ -816,7 +816,7 @@ git commit -m "feat: add punch, backfill and delete endpoints"
 
 **Files:**
 - Create: `src/holiday-store.js`
-- Create: `data/chinese-days.json`
+- Create: `assets/chinese-days.json`（放在 `assets/` 而不是 `data/`：`data/` 是运行时数据卷，Docker 会挂载覆盖它）
 - Modify: `src/app.js`
 - Modify: `src/server.js`
 - Test: `tests/holiday-store.test.js`
@@ -824,15 +824,15 @@ git commit -m "feat: add punch, backfill and delete endpoints"
 **Interfaces:**
 - Consumes: `fetchHolidayData`、`parseHolidayData`、`holidayLookup`、`getHolidayRow`/`saveHolidayRow`
 - Produces:
-  - `seedHolidayIfEmpty(db, { bundledPath = 'data/chinese-days.json' }): { seeded: boolean }`
+  - `seedHolidayIfEmpty(db, { bundledPath = 'assets/chinese-days.json' }): { seeded: boolean }`
   - `refreshHoliday({ db, fetchImpl, url }): Promise<{ coverageMin, coverageMax, updatedAt }>` — 失败抛错且不修改库
   - `startHolidayScheduler({ db, fetchImpl, url, intervalMs = 7*24*60*60*1000 }): () => void` — 启动后立即尝试一次（失败吞掉并记录），之后按间隔执行
   - 路由：`POST /api/holidays/refresh`（受保护）→ 成功 `{ holiday: {...} }`，失败 502 `{ error: 'refresh_failed' }`
 
 - [ ] **Step 1: 准备内置快照**
 
-Run: `node -e "fetch('https://cdn.jsdelivr.net/npm/chinese-days/dist/chinese-days.json').then(r=>r.text()).then(t=>require('fs').writeFileSync('data/chinese-days.json', t))"`（在项目根执行）
-Expected: `data/chinese-days.json` 大小约 37 KB，能被 `parseHolidayData` 解析；若网络不可用，用前面 npm 包里的 `dist/chinese-days.json` 复制过来
+Run: `node -e "const fs=require('fs'); fs.mkdirSync('assets',{recursive:true}); fetch('https://cdn.jsdelivr.net/npm/chinese-days/dist/chinese-days.json').then(r=>r.text()).then(t=>fs.writeFileSync('assets/chinese-days.json', t))"`（在项目根执行）
+Expected: `assets/chinese-days.json` 大小约 37 KB，能被 `parseHolidayData` 解析；若网络不可用，用前面 npm 包里的 `dist/chinese-days.json` 复制过来
 
 - [ ] **Step 2: 写失败测试**
 
@@ -857,7 +857,7 @@ Expected: FAIL
 - 播种：`getHolidayRow` 为空时读内置文件、`parseHolidayData`、`saveHolidayRow`（`fetchedAt = new Date(0).toISOString()` 表示“内置”）。
 - 刷新：拉取 → 解析 → `saveHolidayRow`（`fetchedAt = new Date().toISOString()`），返回 meta；任何错误向上抛，库不变。
 - 调度器：`setTimeout` 链或 `setInterval`，`unref()`，返回 `stop()`。
-- `server.js`：`openDb` 后 `seedHolidayIfEmpty`，再 `startHolidayScheduler`。
+- `server.js`：`openDb` 后 `seedHolidayIfEmpty`，再 `startHolidayScheduler`；**播种失败只记录 warning，不阻止启动**（节假日数据缺失时回退到按工作日设置判断）。
 - `bootstrap` 的 `holiday` 字段在 Task 7 已从 `getHolidayRow` 读取，本任务只确保数据存在。
 
 - [ ] **Step 5: 运行确认通过**
@@ -868,7 +868,7 @@ Expected: PASS
 - [ ] **Step 6: 提交**
 
 ```bash
-git add src/holiday-store.js src/app.js src/server.js data/chinese-days.json tests/holiday-store.test.js
+git add src/holiday-store.js src/app.js src/server.js assets/chinese-days.json tests/holiday-store.test.js
 git commit -m "feat: seed and refresh holiday data with weekly scheduler"
 ```
 
@@ -998,7 +998,7 @@ git commit -m "feat: add day editor sheet and settings panel"
 
 - [ ] **Step 1: 编写 Docker 文件**
 
-`Dockerfile`：两阶段（builder 装 `python3 make g++` 后 `npm ci --omit=dev`；运行阶段 `node:24-slim`，复制 `src public data package*.json node_modules`，`ENV TZ=Asia/Shanghai NODE_ENV=production`，`EXPOSE 3000`，`RUN mkdir -p /app/data`，`CMD ["node","src/server.js"]`）。容器以 root 运行，保证绑定挂载的 `./data` 在 Linux 服务器上可写。
+`Dockerfile`：两阶段（builder 装 `python3 make g++` 后 `npm ci --omit=dev`；运行阶段 `node:24-slim`，复制 `src public assets package*.json node_modules`，`ENV TZ=Asia/Shanghai NODE_ENV=production`，`EXPOSE 3000`，`RUN mkdir -p /app/data`，`CMD ["node","src/server.js"]`）。容器以 root 运行，保证绑定挂载的 `./data` 在 Linux 服务器上可写。内置快照在 `/app/assets/chinese-days.json`，不在数据卷里。
 
 `docker-compose.yml`：
 
@@ -1022,7 +1022,7 @@ services:
       retries: 3
 ```
 
-`.dockerignore`：`node_modules`、`data`、`.git`、`.superpowers`、`.playwright-mcp`、`docs`。
+`.dockerignore`：`node_modules`、`data`、`.git`、`.superpowers`、`.playwright-mcp`、`docs`。`assets/` 必须打进镜像（内置快照），`data/` 只用于运行时数据库。
 
 - [ ] **Step 2: 构建并冒烟测试**
 
