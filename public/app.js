@@ -379,14 +379,19 @@ function updateSheetSub() {
   const day = state.editingDay;
   if (!day) return;
 
-  let type = day.type;
-  let holidayName = day.holidayName;
+  let type;
+  let holidayName = null;
+
   if (state.editingRest === 1) {
     type = 'rest';
-    holidayName = null;
   } else if (state.editingRest === 0) {
     type = 'work';
-    holidayName = null;
+  } else if (day.isRest === null || day.isRest === undefined) {
+    type = day.type;
+    holidayName = day.holidayName;
+  } else {
+    const workdays = state.data?.settings?.workdays ?? [];
+    type = workdays.includes(weekdayMon(day.date)) ? 'work' : 'rest';
   }
 
   const label = holidayName || (type === 'rest' ? '休息日' : '工作日');
