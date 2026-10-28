@@ -19,6 +19,7 @@ import {
 } from './db.js';
 import { buildBootstrap, parseMonthParam, validateSettingsPatch } from './view.js';
 import { punch, saveDay, removeDay } from './mutations.js';
+import { refreshHoliday } from './holiday-store.js';
 
 export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () => new Date() }) {
   const app = express();
@@ -150,6 +151,16 @@ export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () =
       return res.json(result.bootstrap);
     }
     return res.status(result.status).json({ error: result.error });
+  });
+
+  app.post('/api/holidays/refresh', requireAuth(db), async (req, res) => {
+    try {
+      const meta = await refreshHoliday({ db, fetchImpl, url: config?.holidayUrl });
+      const current = getSettings(db);
+      res.json({ holiday: { ...meta, auto: current.autoHoliday } });
+    } catch {
+      res.status(502).json({ error: 'refresh_failed' });
+    }
   });
 
   app.use('/api', (req, res) => {
