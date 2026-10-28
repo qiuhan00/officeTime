@@ -1,0 +1,14 @@
+{
+  "name": "overtime-tracker",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "better-sqlite3": "^12.4.1"
+  }
+}
