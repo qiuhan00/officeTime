@@ -12,7 +12,11 @@ if (config.dbPath !== ':memory:') {
 }
 
 const db = openDb(config.dbPath);
-seedHolidayIfEmpty(db);
+try {
+  seedHolidayIfEmpty(db);
+} catch (error) {
+  console.warn(`holiday seed failed: ${error.message}`);
+}
 startHolidayScheduler({ db, fetchImpl: globalThis.fetch, url: config.holidayUrl });
 const app = createApp({ db, config });
 

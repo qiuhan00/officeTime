@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openDb, getHolidayRow, saveHolidayRow } from '../src/db.js';
+import { parseHolidayData } from '../src/holiday.js';
 import { seedHolidayIfEmpty, refreshHoliday, startHolidayScheduler } from '../src/holiday-store.js';
 import { startServer } from './helpers.js';
 
@@ -43,6 +44,20 @@ test('空库时用内置快照播种', () => {
   assert.ok(row);
   assert.ok(row.coverageMax);
   assert.equal(row.fetchedAt, '1970-01-01T00:00:00.000Z');
+});
+
+test('默认内置快照路径不依赖 cwd', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'holiday-cwd-'));
+  const previousCwd = process.cwd();
+
+  try {
+    process.chdir(dir);
+    const db = openDb(':memory:');
+    assert.deepEqual(seedHolidayIfEmpty(db), { seeded: true });
+  } finally {
+    process.chdir(previousCwd);
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('已存在数据时不重复播种', () => {
@@ -209,6 +224,28 @@ test('内置快照损坏时播种抛错', () => {
 });
 
 test('默认内置快照可被解析', () => {
-  const raw = readFileSync('data/chinese-days.json', 'utf8');
-  assert.ok(raw.length > 0);
+  const raw = readFileSync('assets/chinese-days.json', 'utf8');
+  const parsed = parseHolidayData(raw);
+  assert.ok(parsed.coverageMin);
+  assert.ok(parsed.coverageMax);
+  assert.ok(parsed.holidays.size > 0);
+});
+
+test('停止后未开始的立即刷新不再执行', async () => {
+  const db = openDb(':memory:');
+  let calls = 0;
+  const stop = startHolidayScheduler({
+    db,
+    fetchImpl: async () => {
+      calls += 1;
+      return new Response(sample, { status: 200 });
+    },
+    intervalMs: 60_000,
+    logger: { warn: () => {} },
+  });
+
+  stop();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(calls, 0);
+  assert.equal(getHolidayRow(db), null);
 });

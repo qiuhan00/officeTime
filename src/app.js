@@ -158,7 +158,8 @@ export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () =
       const meta = await refreshHoliday({ db, fetchImpl, url: config?.holidayUrl });
       const current = getSettings(db);
       res.json({ holiday: { ...meta, auto: current.autoHoliday } });
-    } catch {
+    } catch (error) {
+      console.error(`holiday refresh failed: ${error.message}`);
       res.status(502).json({ error: 'refresh_failed' });
     }
   });

@@ -1,22 +1,19 @@
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { HOLIDAY_URL, parseHolidayData } from './holiday.js';
 import { getHolidayRow, saveHolidayRow } from './db.js';
 
 const BUNDLED_FETCHED_AT = new Date(0).toISOString();
 const FETCH_TIMEOUT_MS = 10_000;
+const DEFAULT_BUNDLED_PATH = join(import.meta.dirname, '..', 'assets', 'chinese-days.json');
 
-function fetchParsed(rawText) {
-  const parsed = parseHolidayData(rawText);
-  return { parsed, json: rawText };
-}
-
-export function seedHolidayIfEmpty(db, { bundledPath = 'data/chinese-days.json' } = {}) {
+export function seedHolidayIfEmpty(db, { bundledPath = DEFAULT_BUNDLED_PATH } = {}) {
   if (getHolidayRow(db) !== null) {
     return { seeded: false };
   }
 
   const rawText = readFileSync(bundledPath, 'utf8');
-  const { parsed } = fetchParsed(rawText);
+  const parsed = parseHolidayData(rawText);
 
   saveHolidayRow(db, {
     json: rawText,
@@ -34,7 +31,8 @@ export async function refreshHoliday({ db, fetchImpl = globalThis.fetch, url = H
     throw new Error(`holiday fetch failed with status ${response.status}`);
   }
 
-  const { parsed, json } = fetchParsed(await response.text());
+  const json = await response.text();
+  const parsed = parseHolidayData(json);
   const updatedAt = new Date().toISOString();
 
   saveHolidayRow(db, {
@@ -58,9 +56,13 @@ export function startHolidayScheduler({
   intervalMs = 7 * 24 * 60 * 60 * 1000,
   logger = console,
 } = {}) {
+  let stopped = false;
   const run = () => {
     Promise.resolve()
-      .then(() => refreshHoliday({ db, fetchImpl, url }))
+      .then(() => {
+        if (stopped) return;
+        return refreshHoliday({ db, fetchImpl, url });
+      })
       .catch((error) => {
         logger.warn?.(`holiday refresh failed: ${error.message}`);
       });
@@ -70,5 +72,8 @@ export function startHolidayScheduler({
   const timer = setInterval(run, intervalMs);
   timer.unref?.();
 
-  return () => clearInterval(timer);
+  return () => {
+    stopped = true;
+    clearInterval(timer);
+  };
 }
