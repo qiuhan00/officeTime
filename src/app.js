@@ -18,6 +18,7 @@ import {
   deleteExpiredSessions,
 } from './db.js';
 import { buildBootstrap, parseMonthParam, validateSettingsPatch } from './view.js';
+import { punch, saveDay, removeDay } from './mutations.js';
 
 export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () => new Date() }) {
   const app = express();
@@ -125,6 +126,30 @@ export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () =
 
     updateSettings(db, patch);
     res.json(buildBootstrap({ db, now: now(), month }));
+  });
+
+  app.post('/api/punch', requireAuth(db), (req, res) => {
+    const result = punch({ db, now: now(), type: req.body?.type });
+    if (result.status === 200) {
+      return res.json(result.bootstrap);
+    }
+    return res.status(result.status).json({ error: result.error });
+  });
+
+  app.put('/api/days/:date', requireAuth(db), (req, res) => {
+    const result = saveDay({ db, now: now(), date: req.params.date, body: req.body });
+    if (result.status === 200) {
+      return res.json(result.bootstrap);
+    }
+    return res.status(result.status).json({ error: result.error });
+  });
+
+  app.delete('/api/days/:date', requireAuth(db), (req, res) => {
+    const result = removeDay({ db, now: now(), date: req.params.date });
+    if (result.status === 200) {
+      return res.json(result.bootstrap);
+    }
+    return res.status(result.status).json({ error: result.error });
   });
 
   app.use('/api', (req, res) => {
