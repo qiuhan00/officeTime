@@ -395,10 +395,13 @@ function renderCalendar(data) {
       cell.appendChild(overtime);
     }
 
-    if (day.incomplete) {
+    if (day.inAt || day.outAt) {
+      const kind = day.incomplete ? 'incomplete' : day.overtimeMinutes > 0 ? 'ot' : 'ok';
+      const label = kind === 'incomplete' ? '记录不完整' : kind === 'ot' ? '有加班' : '正常出勤';
       const dot = document.createElement('span');
-      dot.className = 'cal-dot';
-      dot.setAttribute('aria-label', '记录不完整');
+      dot.className = `cal-dot cal-dot-${kind}`;
+      dot.setAttribute('aria-label', label);
+      dot.title = label;
       cell.appendChild(dot);
     }
 
