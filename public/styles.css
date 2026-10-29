@@ -10,6 +10,8 @@
   --card: #ffffff;
   --danger: #d64545;
   --success: #1f9d61;
+  --warning: #e8890c;
+  --ot-dot: #e0a800;
 }
 
 * {
@@ -386,7 +388,15 @@ button {
   height: 5px;
   margin-top: 1px;
   border-radius: 50%;
-  background: var(--danger);
+  background: var(--success);
+}
+
+.cal-dot-ot {
+  background: var(--ot-dot);
+}
+
+.cal-dot-incomplete {
+  background: var(--warning);
 }
 
 /* Day sheet */
