@@ -71,6 +71,11 @@ export function validateSettingsPatch(body) {
     patch.autoHoliday = body.autoHoliday;
   }
 
+  if (has(body, 'loginRequired')) {
+    if (typeof body.loginRequired !== 'boolean') return null;
+    patch.loginRequired = body.loginRequired;
+  }
+
   return patch;
 }
 

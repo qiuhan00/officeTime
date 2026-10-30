@@ -71,6 +71,7 @@ test('结构完整、today 为空、可上班不可下班', async (t) => {
     overtimeStart: '19:00',
     workdays: [1, 2, 3, 4, 5],
     autoHoliday: true,
+    loginRequired: true,
   });
   assert.deepEqual(body.holiday, {
     coverageMin: null,

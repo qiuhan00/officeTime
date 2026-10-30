@@ -13,7 +13,45 @@ test('默认设置', () => {
   assert.equal(s.overtimeStart, '19:00');
   assert.deepEqual(s.workdays, [1, 2, 3, 4, 5]);
   assert.equal(s.autoHoliday, true);
+  assert.equal(s.loginRequired, true);
   assert.equal(s.passwordHash, null);
+});
+
+test('登录开关可更新', () => {
+  const db = openDb(':memory:');
+  updateSettings(db, { loginRequired: false });
+  assert.equal(getSettings(db).loginRequired, false);
+  updateSettings(db, { loginRequired: true });
+  assert.equal(getSettings(db).loginRequired, true);
+});
+
+test('旧库缺少 login_required 列时自动补齐', async () => {
+  const { mkdtemp, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const Database = (await import('better-sqlite3')).default;
+
+  const dir = await mkdtemp(join(tmpdir(), 'overtime-migrate-'));
+  const file = join(dir, 'old.db');
+  const legacy = new Database(file);
+  legacy.exec(`
+    CREATE TABLE settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      period_start_day INTEGER NOT NULL DEFAULT 26,
+      overtime_start TEXT NOT NULL DEFAULT '19:00',
+      workdays TEXT NOT NULL DEFAULT '1,2,3,4,5',
+      auto_holiday INTEGER NOT NULL DEFAULT 1,
+      password_hash TEXT,
+      updated_at TEXT
+    );
+    INSERT INTO settings (id) VALUES (1);
+  `);
+  legacy.close();
+
+  const db = openDb(file);
+  assert.equal(getSettings(db).loginRequired, true);
+  db.close();
+  await rm(dir, { recursive: true, force: true });
 });
 
 test('设置可更新并持久', () => {

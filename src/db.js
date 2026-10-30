@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS settings (
   overtime_start TEXT NOT NULL DEFAULT '19:00',
   workdays TEXT NOT NULL DEFAULT '1,2,3,4,5',
   auto_holiday INTEGER NOT NULL DEFAULT 1,
+  login_required INTEGER NOT NULL DEFAULT 1,
   password_hash TEXT,
   updated_at TEXT
 );
@@ -41,6 +42,7 @@ function toSettings(row) {
     overtimeStart: row.overtime_start,
     workdays: row.workdays === '' ? [] : row.workdays.split(',').map(Number),
     autoHoliday: row.auto_holiday === 1,
+    loginRequired: row.login_required === 1,
     passwordHash: row.password_hash ?? null,
   };
 }
@@ -61,8 +63,18 @@ export function openDb(path) {
     db.pragma('journal_mode = WAL');
   }
   db.exec(SCHEMA);
+  migrate(db);
   db.prepare('INSERT OR IGNORE INTO settings (id) VALUES (1)').run();
   return db;
+}
+
+function migrate(db) {
+  const columns = new Set(
+    db.prepare('PRAGMA table_info(settings)').all().map((column) => column.name),
+  );
+  if (!columns.has('login_required')) {
+    db.exec('ALTER TABLE settings ADD COLUMN login_required INTEGER NOT NULL DEFAULT 1');
+  }
 }
 
 export function getSettings(db) {
@@ -77,14 +89,15 @@ export function updateSettings(db, patch) {
   const overtimeStart = has('overtimeStart') ? patch.overtimeStart : row.overtime_start;
   const workdays = has('workdays') ? patch.workdays.join(',') : row.workdays;
   const autoHoliday = has('autoHoliday') ? (patch.autoHoliday ? 1 : 0) : row.auto_holiday;
+  const loginRequired = has('loginRequired') ? (patch.loginRequired ? 1 : 0) : row.login_required;
   const passwordHash = has('passwordHash') ? patch.passwordHash : row.password_hash;
 
   db.prepare(`
     UPDATE settings
     SET period_start_day = ?, overtime_start = ?, workdays = ?, auto_holiday = ?,
-        password_hash = ?, updated_at = ?
+        login_required = ?, password_hash = ?, updated_at = ?
     WHERE id = 1
-  `).run(periodStartDay, overtimeStart, workdays, autoHoliday, passwordHash, new Date().toISOString());
+  `).run(periodStartDay, overtimeStart, workdays, autoHoliday, loginRequired, passwordHash, new Date().toISOString());
 
   return getSettings(db);
 }

@@ -6,6 +6,7 @@ import {
   createRateLimiter,
   parseCookies,
   requireAuth,
+  requireSession,
   sessionCookie,
   clearSessionCookie,
   newSessionToken,
@@ -88,11 +89,11 @@ export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () =
     res.json({ ok: true });
   });
 
-  app.get('/api/session', requireAuth(db, now), (req, res) => {
+  app.get('/api/session', requireSession(db, now), (req, res) => {
     res.json({ ok: true });
   });
 
-  app.post('/api/password', requireAuth(db, now), (req, res) => {
+  app.post('/api/password', requireSession(db, now), (req, res) => {
     const { oldPassword, newPassword } = req.body ?? {};
 
     if (typeof newPassword !== 'string' || newPassword.length < 8) {
