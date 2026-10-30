@@ -367,6 +367,15 @@ button {
 .cal-cell.dim.today,
 .cal-cell.dim.rest {
   color: #c8ccd6;
+  opacity: 0.38;
+}
+
+.cal-cell.dim.has-ot {
+  background: #f4f5fa;
+}
+
+.cal-cell.dim .cal-dot {
+  opacity: 0.5;
 }
 
 .cal-day {
