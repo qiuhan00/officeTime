@@ -83,23 +83,39 @@
         <button id="sheet-close" class="icon-btn sheet-close" type="button" aria-label="关闭">×</button>
       </header>
       <div class="sheet-body">
-        <label id="row-in" class="sheet-row" for="sheet-in">
-          <span class="sheet-row-label">上班</span>
-          <span class="sheet-row-control">
-            <input id="sheet-in" class="sheet-time" type="time" step="60" />
-            <span class="sheet-row-empty">未打卡</span>
-          </span>
-        </label>
-        <label id="row-out" class="sheet-row" for="sheet-out">
-          <span class="sheet-row-label">下班</span>
-          <span class="sheet-row-control">
-            <input id="sheet-out" class="sheet-time" type="time" step="60" />
-            <span class="sheet-row-empty">未打卡</span>
-          </span>
-        </label>
-        <div class="sheet-rest-row">
-          <button id="sheet-rest" class="sheet-rest" type="button">按设置（工作日/休息日）</button>
-          <button id="sheet-reset-rest" class="link-btn" type="button" hidden>恢复默认</button>
+        <div id="sheet-fields">
+          <button id="row-in" class="sheet-row" type="button">
+            <span class="sheet-row-label">上班</span>
+            <span class="sheet-row-control">
+              <span id="sheet-in" class="sheet-time"></span>
+              <span class="sheet-row-empty">未打卡</span>
+            </span>
+          </button>
+          <button id="row-out" class="sheet-row" type="button">
+            <span class="sheet-row-label">下班</span>
+            <span class="sheet-row-control">
+              <span id="sheet-out" class="sheet-time"></span>
+              <span class="sheet-row-empty">未打卡</span>
+            </span>
+          </button>
+          <div class="sheet-rest-row">
+            <button id="sheet-rest" class="sheet-rest" type="button">按设置（工作日/休息日）</button>
+            <button id="sheet-reset-rest" class="link-btn" type="button" hidden>恢复默认</button>
+          </div>
+        </div>
+        <div id="time-picker" class="time-picker" hidden>
+          <p id="picker-title" class="picker-title"></p>
+          <div class="picker-wheels">
+            <div id="wheel-hour" class="wheel" role="listbox" aria-label="小时" tabindex="0"></div>
+            <span class="picker-colon" aria-hidden="true">:</span>
+            <div id="wheel-minute" class="wheel" role="listbox" aria-label="分钟" tabindex="0"></div>
+          </div>
+          <div class="picker-actions">
+            <button id="picker-clear" class="link-btn" type="button">清除</button>
+            <span class="picker-spacer"></span>
+            <button id="picker-cancel" class="picker-cancel" type="button">取消</button>
+            <button id="picker-ok" class="primary-btn picker-ok" type="button">确定</button>
+          </div>
         </div>
       </div>
       <div class="sheet-actions">

@@ -482,8 +482,15 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  width: 100%;
   min-height: 54px;
+  padding: 0;
+  border: 0;
   border-bottom: 1px solid var(--line);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
 }
 
@@ -512,6 +519,131 @@ button {
 .sheet-time:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(47, 69, 208, 0.14);
+}
+
+.sheet-time:empty {
+  display: none;
+}
+
+.time-picker {
+  padding: 14px 0 6px;
+}
+
+.picker-title {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.picker-wheels {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 4px;
+}
+
+.picker-wheels::before,
+.picker-wheels::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 56px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.picker-wheels::before {
+  top: 0;
+  background: linear-gradient(#fff 10%, rgba(255, 255, 255, 0));
+}
+
+.picker-wheels::after {
+  bottom: 0;
+  background: linear-gradient(rgba(255, 255, 255, 0), #fff 90%);
+}
+
+.wheel {
+  width: 78px;
+  height: 190px;
+  padding: 76px 0;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  text-align: center;
+  outline: none;
+}
+
+.wheel::-webkit-scrollbar {
+  display: none;
+}
+
+.wheel-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  scroll-snap-align: center;
+  color: #b9bec9;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wheel-item.is-active {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.wheel:focus-visible {
+  border-radius: 12px;
+}
+
+.picker-colon {
+  width: 12px;
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.picker-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.picker-actions > * {
+  flex: none;
+  white-space: nowrap;
+}
+
+.picker-spacer {
+  flex: 1;
+}
+
+.picker-cancel {
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #eef0f5;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.picker-ok {
+  width: auto;
+  margin-top: 0;
+  padding: 10px 24px;
+  font-size: 14px;
+}
+
+.day-sheet.is-picking .sheet-actions,
+.day-sheet.is-picking .sheet-hint {
+  display: none;
 }
 
 .sheet-row-empty {

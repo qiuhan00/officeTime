@@ -6,6 +6,9 @@ const state = {
   editingDate: null,
   editingDay: null,
   editingRest: null,
+  editingIn: null,
+  editingOut: null,
+  pickerKind: null,
 };
 
 const ERROR_MESSAGES = {
@@ -46,6 +49,7 @@ const HOLIDAY_DATE_FORMATTER = new Intl.DateTimeFormat('zh-CN', {
 });
 
 const TOAST_MS = 3000;
+const WHEEL_ITEM_HEIGHT = 38;
 
 let toastTimer = null;
 let activeDialog = null;
@@ -75,8 +79,18 @@ const els = {
   daySheet: document.getElementById('day-sheet'),
   sheetTitle: document.getElementById('sheet-title'),
   sheetSub: document.getElementById('sheet-sub'),
+  sheetFields: document.getElementById('sheet-fields'),
   sheetIn: document.getElementById('sheet-in'),
   sheetOut: document.getElementById('sheet-out'),
+  rowIn: document.getElementById('row-in'),
+  rowOut: document.getElementById('row-out'),
+  timePicker: document.getElementById('time-picker'),
+  pickerTitle: document.getElementById('picker-title'),
+  wheelHour: document.getElementById('wheel-hour'),
+  wheelMinute: document.getElementById('wheel-minute'),
+  pickerOk: document.getElementById('picker-ok'),
+  pickerCancel: document.getElementById('picker-cancel'),
+  pickerClear: document.getElementById('picker-clear'),
   sheetRest: document.getElementById('sheet-rest'),
   sheetResetRest: document.getElementById('sheet-reset-rest'),
   sheetSave: document.getElementById('sheet-save'),
@@ -240,6 +254,10 @@ function onDocumentKeydown(event) {
 
   if (event.key === 'Escape') {
     event.preventDefault();
+    if (activeDialog === els.daySheet && state.pickerKind) {
+      closeTimePicker();
+      return;
+    }
     closeActiveDialog();
     return;
   }
@@ -551,11 +569,88 @@ function updateRestUi() {
   updateSheetSub();
 }
 
-function updateEmptyHints() {
-  for (const input of [els.sheetIn, els.sheetOut]) {
-    const hint = input.parentElement?.querySelector('.sheet-row-empty');
-    if (hint) hint.hidden = input.value !== '';
+function renderTimeRows() {
+  for (const [value, valueEl, row] of [
+    [state.editingIn, els.sheetIn, els.rowIn],
+    [state.editingOut, els.sheetOut, els.rowOut],
+  ]) {
+    valueEl.textContent = value ?? '';
+    const hint = row.querySelector('.sheet-row-empty');
+    if (hint) hint.hidden = value != null;
   }
+}
+
+function fillWheel(wheel, count) {
+  if (wheel.childElementCount > 0) return;
+  for (let index = 0; index < count; index += 1) {
+    const item = document.createElement('div');
+    item.className = 'wheel-item';
+    item.setAttribute('role', 'option');
+    item.textContent = pad2(index);
+    wheel.appendChild(item);
+  }
+}
+
+function wheelIndex(wheel) {
+  const max = wheel.childElementCount - 1;
+  const index = Math.round(wheel.scrollTop / WHEEL_ITEM_HEIGHT);
+  return Math.min(max, Math.max(0, index));
+}
+
+function updateWheelHighlight(wheel) {
+  const index = wheelIndex(wheel);
+  Array.from(wheel.children).forEach((item, itemIndex) => {
+    const active = itemIndex === index;
+    item.classList.toggle('is-active', active);
+    item.setAttribute('aria-selected', String(active));
+  });
+}
+
+function selectWheelValue(wheel, value) {
+  wheel.scrollTop = value * WHEEL_ITEM_HEIGHT;
+  updateWheelHighlight(wheel);
+}
+
+function openTimePicker(kind) {
+  if (!state.editingDate) return;
+  const current = kind === 'in' ? state.editingIn : state.editingOut;
+  const [hour, minute] = current ? current.split(':').map(Number) : kind === 'in' ? [9, 0] : [18, 0];
+
+  state.pickerKind = kind;
+  els.daySheet.classList.add('is-picking');
+  els.sheetFields.hidden = true;
+  els.timePicker.hidden = false;
+  els.pickerTitle.textContent = `${formatMonthDay(state.editingDate)} ${weekdayLabel(state.editingDate)} · ${kind === 'in' ? '上班时间' : '下班时间'}`;
+  fillWheel(els.wheelHour, 24);
+  fillWheel(els.wheelMinute, 60);
+  requestAnimationFrame(() => {
+    selectWheelValue(els.wheelHour, hour);
+    selectWheelValue(els.wheelMinute, minute);
+    els.wheelHour.focus();
+  });
+}
+
+function closeTimePicker({ restoreFocus = true } = {}) {
+  const kind = state.pickerKind;
+  state.pickerKind = null;
+  els.daySheet.classList.remove('is-picking');
+  els.timePicker.hidden = true;
+  els.sheetFields.hidden = false;
+  if (restoreFocus && kind) {
+    (kind === 'in' ? els.rowIn : els.rowOut).focus();
+  }
+}
+
+function confirmTimePicker({ clear = false } = {}) {
+  const kind = state.pickerKind;
+  if (!kind) return;
+  const value = clear
+    ? null
+    : `${pad2(wheelIndex(els.wheelHour))}:${pad2(wheelIndex(els.wheelMinute))}`;
+  if (kind === 'in') state.editingIn = value;
+  else state.editingOut = value;
+  renderTimeRows();
+  closeTimePicker();
 }
 
 function openDaySheet(date) {
@@ -573,13 +668,17 @@ function openDaySheet(date) {
   state.editingDate = date;
   state.editingDay = day;
   state.editingRest = day.isRest ?? null;
+  state.editingIn = day.inAt ?? null;
+  state.editingOut = day.outAt ?? null;
+  state.pickerKind = null;
+  els.daySheet.classList.remove('is-picking');
+  els.timePicker.hidden = true;
+  els.sheetFields.hidden = false;
 
   els.sheetTitle.textContent = `${formatMonthDay(date)} ${weekdayLabel(date)}`;
-  els.sheetIn.value = day.inAt ?? '';
-  els.sheetOut.value = day.outAt ?? '';
+  renderTimeRows();
   els.sheetDelete.disabled = !(day.inAt || day.outAt || day.isRest !== null);
   updateRestUi();
-  updateEmptyHints();
 
   els.sheetBackdrop.hidden = false;
   els.daySheet.hidden = false;
@@ -589,10 +688,16 @@ function openDaySheet(date) {
 function closeDaySheet() {
   els.daySheet.hidden = true;
   els.sheetBackdrop.hidden = true;
+  state.pickerKind = null;
+  els.daySheet.classList.remove('is-picking');
+  els.timePicker.hidden = true;
+  els.sheetFields.hidden = false;
   deactivateDialog(els.daySheet);
   state.editingDate = null;
   state.editingDay = null;
   state.editingRest = null;
+  state.editingIn = null;
+  state.editingOut = null;
 }
 
 function cycleRest() {
@@ -612,8 +717,8 @@ async function saveDay() {
 
   const date = state.editingDate;
   const viewMonth = state.month;
-  const inAt = els.sheetIn.value || null;
-  const outAt = els.sheetOut.value || null;
+  const inAt = state.editingIn;
+  const outAt = state.editingOut;
   const isRest = state.editingRest;
 
   els.sheetSave.disabled = true;
@@ -836,8 +941,21 @@ function bindEvents() {
   els.sheetResetRest.addEventListener('click', resetRest);
   els.sheetSave.addEventListener('click', saveDay);
   els.sheetDelete.addEventListener('click', deleteDay);
-  els.sheetIn.addEventListener('input', updateEmptyHints);
-  els.sheetOut.addEventListener('input', updateEmptyHints);
+  els.rowIn.addEventListener('click', () => openTimePicker('in'));
+  els.rowOut.addEventListener('click', () => openTimePicker('out'));
+  els.pickerOk.addEventListener('click', () => confirmTimePicker());
+  els.pickerCancel.addEventListener('click', () => closeTimePicker());
+  els.pickerClear.addEventListener('click', () => confirmTimePicker({ clear: true }));
+  for (const wheel of [els.wheelHour, els.wheelMinute]) {
+    wheel.addEventListener('scroll', () => updateWheelHighlight(wheel), { passive: true });
+    wheel.addEventListener('keydown', (event) => {
+      const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
+      if (!step) return;
+      event.preventDefault();
+      wheel.scrollTop = (wheelIndex(wheel) + step) * WHEEL_ITEM_HEIGHT;
+      updateWheelHighlight(wheel);
+    });
+  }
 
   els.settingsClose.addEventListener('click', closeSettings);
   els.settingsSave.addEventListener('click', saveSettings);
