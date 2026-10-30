@@ -1,7 +1,8 @@
 import crypto from 'node:crypto';
 import { getSession, deleteSession } from './db.js';
 
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const SESSION_ONLY_TTL_MS = 24 * 60 * 60 * 1000;
 const SALT_BYTES = 16;
 const KEY_BYTES = 64;
 const HEX_RE = /^[0-9a-f]+$/i;
@@ -73,8 +74,9 @@ export function parseCookies(header) {
   return out;
 }
 
-export function sessionCookie(token) {
-  return `sid=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL_MS / 1000}`;
+export function sessionCookie(token, { persistent = true } = {}) {
+  const base = `sid=${token}; HttpOnly; SameSite=Lax; Path=/`;
+  return persistent ? `${base}; Max-Age=${SESSION_TTL_MS / 1000}` : base;
 }
 
 export function clearSessionCookie() {
@@ -85,8 +87,9 @@ export function newSessionToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-export function sessionExpiry(now) {
-  return new Date(now.getTime() + SESSION_TTL_MS).toISOString();
+export function sessionExpiry(now, { persistent = true } = {}) {
+  const ttl = persistent ? SESSION_TTL_MS : SESSION_ONLY_TTL_MS;
+  return new Date(now.getTime() + ttl).toISOString();
 }
 
 export function requireAuth(db, now = () => new Date()) {
