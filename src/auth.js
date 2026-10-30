@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { getSession, deleteSession } from './db.js';
+import { getSession, deleteSession, getSettings } from './db.js';
 
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const SESSION_ONLY_TTL_MS = 24 * 60 * 60 * 1000;
@@ -92,28 +92,48 @@ export function sessionExpiry(now, { persistent = true } = {}) {
   return new Date(now.getTime() + ttl).toISOString();
 }
 
+function authenticate(db, now, req) {
+  const header = req.headers.authorization;
+  const bearer = typeof header === 'string' && header.startsWith('Bearer ')
+    ? header.slice(7).trim()
+    : '';
+  const cookieToken = parseCookies(req.headers.cookie).sid;
+  const candidates = [bearer, cookieToken].filter(Boolean);
+
+  for (const token of candidates) {
+    const session = getSession(db, token);
+    if (!session) continue;
+    const expiresAt = Date.parse(session.expiresAt);
+    if (!Number.isFinite(expiresAt) || expiresAt <= now().getTime()) {
+      deleteSession(db, token);
+      continue;
+    }
+    return { session, token };
+  }
+
+  return null;
+}
+
 export function requireAuth(db, now = () => new Date()) {
   return (req, res, next) => {
-    const header = req.headers.authorization;
-    const bearer = typeof header === 'string' && header.startsWith('Bearer ')
-      ? header.slice(7).trim()
-      : '';
-    const cookieToken = parseCookies(req.headers.cookie).sid;
-    const candidates = [bearer, cookieToken].filter(Boolean);
+    if (!getSettings(db).loginRequired) return next();
 
-    for (const token of candidates) {
-      const session = getSession(db, token);
-      if (!session) continue;
-      const expiresAt = Date.parse(session.expiresAt);
-      if (!Number.isFinite(expiresAt) || expiresAt <= now().getTime()) {
-        deleteSession(db, token);
-        continue;
-      }
-      req.session = session;
-      req.sessionToken = token;
-      return next();
-    }
+    const auth = authenticate(db, now, req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
 
-    return res.status(401).json({ error: 'unauthorized' });
+    req.session = auth.session;
+    req.sessionToken = auth.token;
+    next();
+  };
+}
+
+export function requireSession(db, now = () => new Date()) {
+  return (req, res, next) => {
+    const auth = authenticate(db, now, req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+
+    req.session = auth.session;
+    req.sessionToken = auth.token;
+    next();
   };
 }

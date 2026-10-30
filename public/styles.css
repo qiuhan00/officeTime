@@ -849,6 +849,16 @@ button {
   accent-color: var(--primary);
 }
 
+.settings-warning {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: #fff4e8;
+  color: #a15b00;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .holiday-meta {
   display: flex;
   align-items: center;

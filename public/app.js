@@ -105,6 +105,8 @@ const els = {
   setOvertimeStart: document.getElementById('set-overtime-start'),
   setWorkdays: document.getElementById('set-workdays'),
   setAutoHoliday: document.getElementById('set-auto-holiday'),
+  setLoginRequired: document.getElementById('set-login-required'),
+  loginRequiredWarning: document.getElementById('login-required-warning'),
   holidayMeta: document.getElementById('holiday-meta'),
   holidayRefresh: document.getElementById('holiday-refresh'),
   setPasswordOld: document.getElementById('set-password-old'),
@@ -529,6 +531,12 @@ function populateSettings() {
     checkbox.checked = workdays.has(Number(checkbox.value));
   }
   els.setAutoHoliday.checked = Boolean(settings.autoHoliday);
+  els.setLoginRequired.checked = settings.loginRequired !== false;
+  updateLoginWarning();
+}
+
+function updateLoginWarning() {
+  els.loginRequiredWarning.hidden = els.setLoginRequired.checked;
 }
 
 function openSettings() {
@@ -792,13 +800,14 @@ async function saveSettings() {
     .map((checkbox) => Number(checkbox.value))
     .sort((a, b) => a - b);
   const autoHoliday = els.setAutoHoliday.checked;
+  const loginRequired = els.setLoginRequired.checked;
   const query = viewMonth ? `?month=${encodeURIComponent(viewMonth)}` : '';
 
   els.settingsSave.disabled = true;
   try {
     const data = await api(`/api/settings${query}`, {
       method: 'PUT',
-      body: JSON.stringify({ periodStartDay, overtimeStart, workdays, autoHoliday }),
+      body: JSON.stringify({ periodStartDay, overtimeStart, workdays, autoHoliday, loginRequired }),
     });
     await adoptBootstrap(data, viewMonth);
     populateSettings();
@@ -986,6 +995,7 @@ function bindEvents() {
   els.settingsClose.addEventListener('click', closeSettings);
   els.settingsSave.addEventListener('click', saveSettings);
   els.holidayRefresh.addEventListener('click', refreshHolidays);
+  els.setLoginRequired.addEventListener('change', updateLoginWarning);
   els.setPasswordSave.addEventListener('click', savePassword);
   els.logout.addEventListener('click', logout);
   document.addEventListener('keydown', onDocumentKeydown);
