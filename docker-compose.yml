@@ -3,7 +3,7 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "8080:3000"
+      - "18081:3000"
     environment:
       TZ: Asia/Shanghai
       DB_PATH: /app/data/overtime.db

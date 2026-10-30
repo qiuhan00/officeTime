@@ -6,7 +6,7 @@
 
 - Docker 20.10+，Docker Compose v2（`docker compose`）
 - 服务器建议为 Linux x86_64/arm64；本机用 Docker Desktop 也可以
-- 默认对外端口 `8080`，如被占用可修改 `docker-compose.yml` 中的端口映射
+- 默认对外端口 `18081`，如被占用可修改 `docker-compose.yml` 中的端口映射
 
 ## 构建与启动
 
@@ -22,7 +22,7 @@ PowerShell：
 $env:INITIAL_PASSWORD="你的初始密码"; docker compose up -d --build
 ```
 
-启动后访问 `http://<服务器地址>:8080`。查看日志与健康状态：
+启动后访问 `http://<服务器地址>:18081`。查看日志与健康状态：
 
 ```bash
 docker compose logs -f app
@@ -36,7 +36,7 @@ docker build -t overtime-tracker .
 docker run -d --name overtime-tracker \
   -e INITIAL_PASSWORD='你的初始密码' \
   -e TZ=Asia/Shanghai \
-  -p 8080:3000 \
+  -p 18081:3000 \
   -v "$PWD/data:/app/data" \
   overtime-tracker
 ```
@@ -54,7 +54,7 @@ docker run -d --name overtime-tracker \
 
 ## 首次登录
 
-1. 打开 `http://<服务器地址>:8080`。
+1. 打开 `http://<服务器地址>:18081`。
 2. 输入 `INITIAL_PASSWORD` 登录。
 3. 进入“设置”修改密码（新密码至少 8 位），然后开始打卡。
 
