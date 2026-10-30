@@ -94,17 +94,26 @@ export function sessionExpiry(now, { persistent = true } = {}) {
 
 export function requireAuth(db, now = () => new Date()) {
   return (req, res, next) => {
-    const token = parseCookies(req.headers.cookie).sid;
-    if (!token) return res.status(401).json({ error: 'unauthorized' });
-    const session = getSession(db, token);
-    if (!session) return res.status(401).json({ error: 'unauthorized' });
-    const expiresAt = Date.parse(session.expiresAt);
-    if (!Number.isFinite(expiresAt) || expiresAt <= now().getTime()) {
-      deleteSession(db, token);
-      return res.status(401).json({ error: 'unauthorized' });
+    const header = req.headers.authorization;
+    const bearer = typeof header === 'string' && header.startsWith('Bearer ')
+      ? header.slice(7).trim()
+      : '';
+    const cookieToken = parseCookies(req.headers.cookie).sid;
+    const candidates = [bearer, cookieToken].filter(Boolean);
+
+    for (const token of candidates) {
+      const session = getSession(db, token);
+      if (!session) continue;
+      const expiresAt = Date.parse(session.expiresAt);
+      if (!Number.isFinite(expiresAt) || expiresAt <= now().getTime()) {
+        deleteSession(db, token);
+        continue;
+      }
+      req.session = session;
+      req.sessionToken = token;
+      return next();
     }
-    req.session = session;
-    req.sessionToken = token;
-    next();
+
+    return res.status(401).json({ error: 'unauthorized' });
   };
 }

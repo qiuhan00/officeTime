@@ -50,6 +50,7 @@ const HOLIDAY_DATE_FORMATTER = new Intl.DateTimeFormat('zh-CN', {
 
 const TOAST_MS = 3000;
 const WHEEL_ITEM_HEIGHT = 38;
+const TOKEN_KEY = 'overtime-token';
 
 let toastTimer = null;
 let activeDialog = null;
@@ -114,6 +115,23 @@ const els = {
 
 function pad2(value) {
   return String(value).padStart(2, '0');
+}
+
+function readToken() {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storeToken(token) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // Storage can be unavailable in private modes; the cookie still works.
+  }
 }
 
 function formatDuration(totalMinutes) {
@@ -297,6 +315,8 @@ async function api(path, options = {}) {
   if (init.body !== undefined && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json';
   }
+  const token = readToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
 
   const response = await fetch(path, {
     credentials: 'same-origin',
@@ -312,6 +332,7 @@ async function api(path, options = {}) {
   }
 
   if (response.status === 401 && !noAuthRedirect) {
+    storeToken(null);
     showLogin();
     throw { status: 401, error: body?.error || 'unauthorized' };
   }
@@ -820,11 +841,12 @@ async function savePassword() {
 
   els.setPasswordSave.disabled = true;
   try {
-    await api('/api/password', {
+    const result = await api('/api/password', {
       method: 'POST',
       noAuthRedirect: true,
       body: JSON.stringify({ oldPassword, newPassword }),
     });
+    storeToken(result?.token ?? null);
     els.setPasswordOld.value = '';
     els.setPasswordNew.value = '';
     showToast('密码已修改', 'success');
@@ -848,6 +870,7 @@ async function logout() {
 
   state.data = null;
   state.month = null;
+  storeToken(null);
   els.loginPassword.value = '';
   els.loginError.textContent = '';
   showLogin();
@@ -895,10 +918,12 @@ async function onLogin(event) {
   }
 
   try {
-    await api('/api/login', {
+    const remember = els.loginRemember.checked;
+    const result = await api('/api/login', {
       method: 'POST',
-      body: JSON.stringify({ password, remember: els.loginRemember.checked }),
+      body: JSON.stringify({ password, remember }),
     });
+    storeToken(remember ? result?.token ?? null : null);
     els.loginPassword.value = '';
     state.month = null;
     await load();
