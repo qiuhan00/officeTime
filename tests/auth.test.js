@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { hashPassword, verifyPassword, createRateLimiter, parseCookies } from '../src/auth.js';
-import { openDb, getSettings } from '../src/db.js';
+import { openDb, getSettings, getSession } from '../src/db.js';
 import { loadConfig } from '../src/config.js';
 import { startServer } from './helpers.js';
 
@@ -67,6 +67,29 @@ test('会话过期使用注入时钟判断', async (t) => {
   current = new Date('2026-11-28T01:41:01Z');
   const expired = await fetch(`${server.baseUrl}/api/session`, { headers: { cookie } });
   assert.equal(expired.status, 401);
+});
+
+test('记住我：勾选为 7 天持久 Cookie，不勾选为浏览器会话 Cookie', async (t) => {
+  const db = openDb(':memory:');
+  const server = await startServer({ db, config: loadConfig({ INITIAL_PASSWORD: 'secret123' }) });
+  t.after(() => server.close());
+  const login = (remember) => fetch(`${server.baseUrl}/api/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ password: 'secret123', remember }),
+  });
+
+  const remembered = await login(true);
+  const rememberedCookie = remembered.headers.get('set-cookie');
+  assert.match(rememberedCookie, /Max-Age=604800/);
+
+  const sessionOnly = await login(false);
+  const sessionCookieHeader = sessionOnly.headers.get('set-cookie');
+  assert.doesNotMatch(sessionCookieHeader, /Max-Age/);
+
+  const token = /sid=([^;]+)/.exec(sessionCookieHeader)[1];
+  const expiresInMs = Date.parse(getSession(db, token).expiresAt) - Date.now();
+  assert.ok(expiresInMs > 23 * 60 * 60 * 1000 && expiresInMs <= 24 * 60 * 60 * 1000);
 });
 
 test('登录/登出/改密码流程', async () => {

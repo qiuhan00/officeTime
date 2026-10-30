@@ -61,6 +61,7 @@ const els = {
   loginView: document.getElementById('login-view'),
   loginForm: document.getElementById('login-form'),
   loginPassword: document.getElementById('login-password'),
+  loginRemember: document.getElementById('login-remember'),
   loginError: document.getElementById('login-error'),
   mainView: document.getElementById('main-view'),
   periodRange: document.getElementById('period-range'),
@@ -896,7 +897,7 @@ async function onLogin(event) {
   try {
     await api('/api/login', {
       method: 'POST',
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ password, remember: els.loginRemember.checked }),
     });
     els.loginPassword.value = '';
     state.month = null;

@@ -37,10 +37,10 @@ export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () =
   const globalLoginLimiter = createRateLimiter({ limit: 20, windowMs: 60_000, now: nowMs });
   const GLOBAL_LOGIN_KEY = '__global__';
 
-  function startSession(res) {
+  function startSession(res, { persistent = true } = {}) {
     const token = newSessionToken();
-    createSession(db, token, sessionExpiry(now()));
-    res.setHeader('Set-Cookie', sessionCookie(token));
+    createSession(db, token, sessionExpiry(now(), { persistent }));
+    res.setHeader('Set-Cookie', sessionCookie(token, { persistent }));
     return token;
   }
 
@@ -72,7 +72,7 @@ export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () =
 
     loginLimiter.reset(ip);
     globalLoginLimiter.reset(GLOBAL_LOGIN_KEY);
-    startSession(res);
+    startSession(res, { persistent: req.body?.remember !== false });
     res.json({ ok: true });
   });
 
