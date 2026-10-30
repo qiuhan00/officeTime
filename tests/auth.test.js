@@ -92,6 +92,31 @@ test('记住我：勾选为 7 天持久 Cookie，不勾选为浏览器会话 Coo
   assert.ok(expiresInMs > 23 * 60 * 60 * 1000 && expiresInMs <= 24 * 60 * 60 * 1000);
 });
 
+test('勾选记住我返回 token，仅凭 token 也能访问', async (t) => {
+  const db = openDb(':memory:');
+  const server = await startServer({ db, config: loadConfig({ INITIAL_PASSWORD: 'secret123' }) });
+  t.after(() => server.close());
+
+  const login = await fetch(`${server.baseUrl}/api/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ password: 'secret123', remember: true }),
+  });
+  const body = await login.json();
+  assert.equal(typeof body.token, 'string');
+  assert.ok(body.token.length >= 32);
+
+  const auth = { authorization: `Bearer ${body.token}` };
+  const bootstrap = await fetch(`${server.baseUrl}/api/bootstrap`, { headers: auth });
+  assert.equal(bootstrap.status, 200);
+
+  const logout = await fetch(`${server.baseUrl}/api/logout`, { method: 'POST', headers: auth });
+  assert.equal(logout.status, 200);
+
+  const after = await fetch(`${server.baseUrl}/api/bootstrap`, { headers: auth });
+  assert.equal(after.status, 401);
+});
+
 test('登录/登出/改密码流程', async () => {
   const db = openDb(':memory:');
   const server = await startServer({ db, config: loadConfig({ INITIAL_PASSWORD: 'secret123' }) });

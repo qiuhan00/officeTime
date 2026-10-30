@@ -72,12 +72,17 @@ export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () =
 
     loginLimiter.reset(ip);
     globalLoginLimiter.reset(GLOBAL_LOGIN_KEY);
-    startSession(res, { persistent: req.body?.remember !== false });
-    res.json({ ok: true });
+    const persistent = req.body?.remember !== false;
+    const token = startSession(res, { persistent });
+    res.json(persistent ? { ok: true, token } : { ok: true });
   });
 
   app.post('/api/logout', (req, res) => {
-    const token = parseCookies(req.headers.cookie).sid;
+    const header = req.headers.authorization;
+    const bearer = typeof header === 'string' && header.startsWith('Bearer ')
+      ? header.slice(7).trim()
+      : '';
+    const token = bearer || parseCookies(req.headers.cookie).sid;
     if (token) deleteSession(db, token);
     res.setHeader('Set-Cookie', clearSessionCookie());
     res.json({ ok: true });
@@ -105,8 +110,8 @@ export function createApp({ db, config, fetchImpl = globalThis.fetch, now = () =
 
     updateSettings(db, { passwordHash: hashPassword(newPassword) });
     db.prepare('DELETE FROM sessions').run();
-    startSession(res);
-    res.json({ ok: true });
+    const token = startSession(res);
+    res.json({ ok: true, token });
   });
 
   app.get('/api/bootstrap', requireAuth(db, now), (req, res) => {
